@@ -9,12 +9,13 @@ import (
 // NodesList displays the list of connected nodes.
 func NodesList() {
 	waitForStats()
+	topCols := []string{"Last seen        ", " - ", "Node                 ", " - ", "Status   ", " - ", "Version                             ", " - ", "Name     "}
 	for {
 		if !getPauseStats() {
 			resetScreen()
-			showTopBar([]string{"Total", " - ", "Node    ", "Name     ", "Version"})
+			showTopBar(topCols)
 			for addr, node := range *nodes.GetAll() {
-				fmt.Printf("%-4d - [%s] [%s] [%s]\n", nodes.Total(), addr, node.GetConfig().Name, node.GetConfig().Version)
+				fmt.Printf("  [%v]  - [%-20s]  -  [%-25s] - [%s]  -  [%s]\n", node.LastSeen().Format(time.Stamp), addr, node.Status(), node.GetConfig().Version, node.GetConfig().Name)
 			}
 		}
 		if getStopStats() || !config.Loop {

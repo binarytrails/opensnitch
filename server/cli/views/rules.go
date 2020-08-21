@@ -11,14 +11,15 @@ import (
 func RulesList() {
 	waitForStats()
 	rules := make(map[string]*protocol.Rule)
+	topCols := []string{"Num ", "Node                  ", "Name                                 ", "Action ", "Duration"}
 	for {
 		if !getPauseStats() {
 			resetScreen()
-			showTopBar([]string{"Num ", " - ", "Node                  ", "Name                                 ", "Action ", "Duration"})
+			showTopBar(topCols)
 			for addr, node := range *nodes.GetAll() {
 				for idx, rule := range node.GetConfig().Rules {
 					if _, found := rules[rule.Name]; !found {
-						fmt.Printf("  %-5d -  [%-20s] [%35s] [%5s] [%s]\n", idx, addr, rule.Name, rule.Action, rule.Duration)
+						fmt.Printf("  %-4d [%-20s] [%35s] [%5s] [%s]\n", idx, addr, rule.Name, rule.Action, rule.Duration)
 					}
 				}
 			}
