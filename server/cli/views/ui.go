@@ -155,6 +155,13 @@ func resetScreen() {
 	cmd.Run()
 }
 
+func RestoreTTY() {
+	cmd := exec.Command("stty", "echo")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Run()
+}
+
 func nextView() {
 	pos, _ := viewList[config.View]
 	pos++
@@ -184,5 +191,9 @@ func changeView(pos int) {
 		viewList[ViewPorts],
 		viewList[ViewUsers]:
 		StatsByType(viewNames[pos])
+	case viewList[ViewRules]:
+		RulesList()
+	case viewList[ViewNodes]:
+		NodesList()
 	}
 }

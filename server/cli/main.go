@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 
@@ -26,13 +25,6 @@ var (
 	showStatus           = false
 )
 
-func restoreTTY() {
-	cmd := exec.Command("stty", "echo")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Run()
-}
-
 func setupSignals() {
 	sigChan = make(chan os.Signal, 1)
 	signal.Notify(sigChan,
@@ -45,7 +37,7 @@ func setupSignals() {
 		log.Raw("\n")
 		log.Important("Got signal: %v", sig)
 		//		exitChan <- true
-		restoreTTY()
+		views.RestoreTTY()
 		os.Exit(0)
 	}()
 }
@@ -53,7 +45,7 @@ func setupSignals() {
 func init() {
 	flag.StringVar(&serverProto, "-socket-type", "tcp", "Protocol for incoming nodes (tcp, udp, unix)")
 	flag.StringVar(&serverPort, "-socket-port", ":50051", "Listening port for incoming nodes")
-	flag.StringVar(&viewsConfig.View, "show-stats", "", "View connections statistics, possible values: general, nodes, hosts, procs, addrs, ports, users")
+	flag.StringVar(&viewsConfig.View, "show-stats", "", "View connections statistics, possible values: general, nodes, hosts, procs, addrs, ports, users, rules, nodes")
 	flag.StringVar(&viewsConfig.Delimiter, "stats-delimiter", "", "Delimiter to separate statistics fields when print style is 'plain'")
 	flag.IntVar(&viewsConfig.Limit, "stats-limit", 50, "Limit statistics")
 	flag.StringVar(&viewsConfig.Style, "stats-style", views.ViewStylePretty, "Lists style: pretty, plain")
@@ -89,5 +81,5 @@ func main() {
 		views.Show()
 	}
 
-	restoreTTY()
+	views.RestoreTTY()
 }

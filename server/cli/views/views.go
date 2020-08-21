@@ -41,6 +41,8 @@ var (
 		ViewAddrs,
 		ViewPorts,
 		ViewUsers,
+		ViewRules,
+		ViewNodes,
 	}
 	viewList = map[string]int{
 		ViewGeneral: 0,
@@ -49,19 +51,22 @@ var (
 		ViewAddrs:   3,
 		ViewPorts:   4,
 		ViewUsers:   5,
+		ViewRules:   6,
+		ViewNodes:   7,
 	}
-	totalViews = 5
+	totalViews = 7
 )
 
 const (
 	appName     = "OpenSnitch"
 	ViewGeneral = "general"
-	ViewNodes   = "nodes"
 	ViewHosts   = "hosts"
 	ViewProcs   = "procs"
 	ViewAddrs   = "addrs"
 	ViewPorts   = "ports"
 	ViewUsers   = "users"
+	ViewRules   = "rules"
+	ViewNodes   = "nodes"
 
 	ViewStylePlain  = "plain"
 	ViewStylePretty = "pretty"
@@ -87,8 +92,12 @@ func Show() {
 	switch config.View {
 	case ViewGeneral:
 		GeneralStats()
-	case ViewNodes, ViewHosts, ViewProcs, ViewAddrs, ViewPorts, ViewUsers:
+	case ViewHosts, ViewProcs, ViewAddrs, ViewPorts, ViewUsers:
 		StatsByType(config.View)
+	case ViewNodes:
+		NodesList()
+	case ViewRules:
+		RulesList()
 	default:
 		log.Info("unknown view:", config.View)
 	}
