@@ -41,12 +41,19 @@ func StatsByType(vtype string) {
 			resetScreen()
 			showTopBar([]string{colHits, "-", colWhat})
 			for what, hits := range vstats {
-				printStats(what, hits)
+				if config.Filter != "" {
+					if what == config.Filter {
+						printStats(what, hits)
+					}
+				} else {
+					printStats(what, hits)
+				}
 			}
+			printVerticalPadding(len(vstats))
 		}
 		showStatusBar()
 		readLiveMenu()
-		if getStopStats() || !config.Loop {
+		if getStopStats() {
 			return
 		}
 		time.Sleep(600 * time.Millisecond)

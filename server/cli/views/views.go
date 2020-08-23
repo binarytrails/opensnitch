@@ -2,13 +2,13 @@ package views
 
 import (
 	"fmt"
-	"path"
 	"sync"
 	"time"
 
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api"
+	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/cli/menus"
 )
 
@@ -18,6 +18,7 @@ type Config struct {
 	Loop      bool
 	Style     string
 	Limit     int
+	Filter    string
 	//Fields    []string
 	apiClient *api.Client
 }
@@ -32,7 +33,7 @@ var (
 	ttyRows = 80
 	ttyCols = 80
 
-	keyPressedChan = make(chan string, 1)
+	keyPressedChan chan *menus.KeyEvent
 
 	viewNames = [...]string{
 		ViewGeneral,
@@ -123,7 +124,7 @@ func getStopStats() bool {
 	lock.RLock()
 	defer lock.RUnlock()
 
-	return stopStats
+	return stopStats || !config.Loop
 }
 
 // just after start the stats are not ready to be consumed, because there're no
@@ -138,35 +139,76 @@ func waitForStats() {
 	cleanLine()
 }
 
+func setFilter() {
+	cleanLine()
+	if config.Filter != "" {
+		fmt.Printf("Current filter: %s\n", config.Filter)
+	}
+	fmt.Printf(log.BG_GREEN + log.FG_WHITE + "filter" + log.Bold(">") + log.RESET + " ")
+	config.Filter = menus.ReadLine()
+}
+
+func unsetFilter() {
+	config.Filter = ""
+}
+
+func menuGeneral(cmd string) {
+	switch cmd {
+	case menus.PAUSE:
+		pauseStats = true
+	case menus.CONTINUE, menus.RUN:
+		pauseStats = false
+	case menus.QUIT:
+		pauseStats = true
+		exit()
+		return
+	case menus.HELP:
+		pauseStats = true
+		printHelp()
+	case menus.NEXTVIEW:
+		nextView()
+	case menus.PREVVIEW:
+		prevView()
+	case menus.FILTER:
+		setFilter()
+	case menus.DISABLEFILTER:
+		unsetFilter()
+	case menus.ACTIONS:
+		pauseStats = true
+		printActionsMenu()
+	case menus.STOPFIREWALL:
+		nodes.SendNotifications(
+			&protocol.Notification{
+				Id:   uint64(time.Now().UnixNano()),
+				Type: protocol.Action_UNLOAD_FIREWALL,
+			})
+		pauseStats = false
+	case menus.STARTFIREWALL:
+		nodes.SendNotifications(
+			&protocol.Notification{
+				Id:   uint64(time.Now().UnixNano()),
+				Type: protocol.Action_LOAD_FIREWALL,
+			})
+		pauseStats = false
+	// case menus.CHANGECONFIG:
+	// case menus.DELETERULE
+	// TODO
+	// case menus.ShowViewsMenu (: -> :ls, :hosts, :ports, :procs, :users, ...)
+	//  - case menus.ViewByHost
+	//  - case menus.ViewByPort
+	//  - case menus.ViewConnectionDetails -> select row -> show details
+	//  - case menus.SortReverse (o)
+	default:
+	}
+}
+
 func readLiveMenu() {
 	select {
 	case cmd, ok := <-menus.KeyPressedChan:
-		if !ok || cmd == "" {
+		if !ok || cmd.Char == "" {
 			return
 		}
-		switch cmd {
-		case menus.PAUSE:
-			pauseStats = true
-		case menus.CONTINUE, menus.RUN:
-			pauseStats = false
-		case menus.QUIT:
-			exit()
-			return
-		case menus.HELP:
-			pauseStats = true
-			printHelp()
-		case menus.NEXTVIEW:
-			nextView()
-		case menus.PREVVIEW:
-			prevView()
-			// TODO
-			// case menus.ShowViewsMenu (: -> :ls, :hosts, :ports, :procs, :users, ...)
-			//  - case menus.ViewByHost
-			//  - case menus.ViewByPort
-			//  - case menus.ViewConnectionDetails -> select row -> show details
-			//  - case menus.SortReverse (o)
-		default:
-		}
+		menuGeneral(cmd.Char)
 	default:
 	}
 }
@@ -182,65 +224,4 @@ func handleNewRules() {
 			askRule(con)
 		}
 	}
-}
-
-func askRule(con *protocol.Connection) {
-	lock.Lock()
-	defer lock.Unlock()
-	pauseStats = true
-
-	procName := path.Base(con.ProcessPath)
-	// TODO: uglify rule name
-	ruleName := fmt.Sprint(procName, "-", con.Protocol, "-sport", con.SrcPort, "-dport", con.DstPort)
-	alertTitle := log.Bold(log.Red(fmt.Sprintf("**** %s is trying to establish a connection ****", procName)))
-	alertBody := log.Blue(fmt.Sprint(procName, ": ", con.SrcPort, ":", con.SrcIp, " -> ", con.DstIp, ":", con.DstPort))
-	alertButtons := log.Bold(fmt.Sprint(log.Green("✔ Allow(1)"), ", ", log.Bold(log.Red("✘ Deny(2)")), ", ", log.Bold("Connection details(3)")))
-
-	// TODO: add more options: filter by fields, regexp rule, etc.
-	if con.ProcessPath == "" {
-		alertTitle = log.Bold(log.Red("  **** New outgoing connection ****  "))
-	}
-
-	questionBox(alertTitle, alertBody, alertButtons)
-
-	timeout, _ := time.ParseDuration(defaultRulesTimeout)
-	time.AfterFunc(timeout, func() {
-		log.Important("Timeout, default action applied\n")
-		setBlinkingLabel(RULES)
-		menus.KeyPressedChan <- menus.NotAnswered
-	})
-	cleanLine()
-	switch key := <-menus.KeyPressedChan; key {
-	case menus.Allow:
-		fmt.Printf("%s%*s\n\n", log.Bold(log.Green("✔ Connection ALLOWED")), ttyCols, " ")
-		ruleName = fmt.Sprint(ruleName, api.ActionAllow)
-		resetBlinkingLabel(RULES)
-	case menus.Deny:
-		fmt.Printf("%s%*s\n\n", log.Bold(log.Red("✘ Connection DENIED")), ttyCols, " ")
-		ruleName = fmt.Sprint(ruleName, api.ActionDeny)
-		resetBlinkingLabel(RULES)
-		// TODO
-		// case menus.ShowRuleOptions
-	case menus.NotAnswered:
-		// TODO: configure default action
-		fmt.Printf("%s%*s\n\n", log.Bold(log.Green("✔ Connection ALLOWED")), ttyCols, " ")
-		ruleName = fmt.Sprint(ruleName, api.ActionAllow)
-	}
-	time.Sleep(1 * time.Second)
-
-	pauseStats = false
-
-	op := &protocol.Operator{
-		Type:    api.RuleSimple,
-		Operand: api.FilterByPath,
-		Data:    con.ProcessPath,
-	}
-	config.apiClient.AddNewRule(&protocol.Rule{
-		Name:     ruleName,
-		Enabled:  true,
-		Action:   api.ActionAllow,
-		Duration: api.Rule30s,
-		Operator: op,
-	})
-
 }

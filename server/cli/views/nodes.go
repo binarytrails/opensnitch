@@ -17,8 +17,9 @@ func NodesList() {
 			for _, node := range *nodes.GetAll() {
 				fmt.Printf("  %v\n", node)
 			}
+			printVerticalPadding(nodes.Total())
 		}
-		if getStopStats() || !config.Loop {
+		if getStopStats() {
 			return
 		}
 		showStatusBar()

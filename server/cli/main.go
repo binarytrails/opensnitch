@@ -43,16 +43,16 @@ func setupSignals() {
 }
 
 func init() {
-	flag.StringVar(&serverProto, "-socket-type", "tcp", "Protocol for incoming nodes (tcp, udp, unix)")
-	flag.StringVar(&serverPort, "-socket-port", ":50051", "Listening port for incoming nodes")
+	flag.StringVar(&serverProto, "socket-type", "tcp", "Protocol for incoming nodes (tcp, udp, unix)")
+	flag.StringVar(&serverPort, "socket-port", ":50051", "Listening port for incoming nodes")
 	flag.StringVar(&viewsConfig.View, "show-stats", "", "View connections statistics, possible values: general, nodes, hosts, procs, addrs, ports, users, rules, nodes")
 	flag.StringVar(&viewsConfig.Delimiter, "stats-delimiter", "", "Delimiter to separate statistics fields when print style is 'plain'")
 	flag.IntVar(&viewsConfig.Limit, "stats-limit", 50, "Limit statistics")
 	flag.StringVar(&viewsConfig.Style, "stats-style", views.ViewStylePretty, "Lists style: pretty, plain")
+	flag.StringVar(&viewsConfig.Filter, "stats-filter", "", "Filter statistics. For example: firefox")
 	flag.BoolVar(&viewsConfig.Loop, "live", true, "Live statistics")
 	flag.BoolVar(&showStatus, "show-status", false, "Show daemon status and exit")
 	// TODO: stats-fields: time,proc,dstIp,dstPort ...
-	// TODO: stats-filter: "firefox"
 }
 
 func main() {

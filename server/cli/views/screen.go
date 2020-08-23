@@ -17,6 +17,14 @@ var (
 	eventTime   = ""
 )
 
+func printVerticalPadding(what int) {
+	if what < ttyRows {
+		for row := 0; row < ttyRows-what-2; row++ {
+			fmt.Printf("\n")
+		}
+	}
+}
+
 // PrintStatus prints an overview of the node statistics.
 func PrintStatus() {
 	waitForStats()
@@ -54,16 +62,38 @@ func printHelp() {
 	fmt.Printf("\n\tr/c - continue viewing statistics\n")
 	fmt.Printf("\tp   - pause statistics\n")
 	fmt.Printf("\tq   - stop and exit\n")
+	fmt.Printf("\ta   - actions\n")
 	fmt.Printf("\t><  - view next/preview statistics\n")
 	//fmt.Printf("\tl   - limit statistics\n")
-	//fmt.Printf("\tf   - filter statistics\n")
+	fmt.Printf("\tf/F   - filter statistics (enable/disable)\n")
 	fmt.Printf("\th   - help\n")
 	fmt.Printf("\n")
 	cleanLine()
 }
 
-func printConnectionDetails() {
-	// TODO
+func printActionsMenu() {
+	cleanLine()
+	fmt.Printf("\n\t1. stop firewall\n")
+	fmt.Printf("\t2. load firewall\n")
+	//fmt.Printf("\t3. change configuration\n")
+	//fmt.Printf("\t4. delete rule\n")
+	fmt.Printf("\n")
+	cleanLine()
+}
+
+func printConnectionDetails(con *protocol.Connection) {
+	cleanLine()
+	fmt.Printf("\n\tUser ID:        \t %s\n", con.UserId)
+	fmt.Printf("\n\tInvoked command:\t")
+	for _, parg := range con.ProcessArgs {
+		fmt.Printf(" %s", parg)
+	}
+	fmt.Printf("\n")
+	fmt.Printf("\n\tProcess path:   \t%s\n", con.ProcessPath)
+	fmt.Printf("\n\tProcess CWD:    \t%s\n", con.ProcessCwd)
+	fmt.Printf("\t %s - %d:%s -> %s:%d\n", con.Protocol, con.SrcPort, con.SrcIp, con.DstIp, con.DstPort)
+	fmt.Printf("\n")
+	cleanLine()
 }
 
 // print statistics by type (procs, hosts, ports, addrs...)
@@ -85,6 +115,11 @@ func printEvent(e *protocol.Event) {
 		eventAction = e.Rule.Action
 	}
 
+	dstHost := e.Connection.DstHost
+	if dstHost != e.Connection.DstIp {
+		dstHost += " (" + e.Connection.DstIp + ")"
+	}
+
 	fmt.Printf(printFormat,
 		eventTime,
 		config.Delimiter,
@@ -98,7 +133,7 @@ func printEvent(e *protocol.Event) {
 		config.Delimiter,
 		e.Connection.SrcIp,
 		config.Delimiter,
-		e.Connection.DstIp,
+		dstHost,
 		config.Delimiter,
 		e.Connection.DstPort,
 		config.Delimiter,
