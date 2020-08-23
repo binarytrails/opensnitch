@@ -2,13 +2,11 @@ package nodes
 
 import (
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc/peer"
 )
 
 // Status represents the current connectivity status of a node.
@@ -21,7 +19,8 @@ var (
 )
 
 type node struct {
-	addr                 net.Addr
+	// proto:host
+	addr                 string
 	ctx                  context.Context
 	lastSeen             time.Time
 	status               Status
@@ -32,11 +31,10 @@ type node struct {
 }
 
 // NewNode instanstiates a new node.
-func NewNode(ctx context.Context, nodeConf *protocol.ClientConfig) *node {
-	p, _ := peer.FromContext(ctx)
-	log.Info("NewNode: %s - %s, %v", nodeConf.Name, nodeConf.Version, p.Addr)
+func NewNode(ctx context.Context, addr string, nodeConf *protocol.ClientConfig) *node {
+	log.Info("NewNode: %s - %s, %v", nodeConf.Name, nodeConf.Version, addr)
 	return &node{
-		addr:                 p.Addr,
+		addr:                 addr,
 		ctx:                  ctx,
 		lastSeen:             time.Now(),
 		status:               Online,
@@ -46,12 +44,12 @@ func NewNode(ctx context.Context, nodeConf *protocol.ClientConfig) *node {
 }
 
 func (n *node) String() string {
-	return fmt.Sprintf("[%v] [%10s] %s - %s", n.lastSeen, n.addr, n.config.Name, n.config.Version)
+	return fmt.Sprintf("[%v]  -  [%-20s]  -  [%-24s]  -  [%s]  -  [%s]", n.lastSeen.Format(time.Stamp), n.addr, n.status, n.config.Version, n.config.Name)
 }
 
 // Addr returns the address of the node.
 func (n *node) Addr() string {
-	return n.addr.String()
+	return n.addr
 }
 
 func (n *node) Close() {

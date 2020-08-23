@@ -1,6 +1,8 @@
 package nodes
 
 import (
+	"net"
+
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"golang.org/x/net/context"
@@ -19,9 +21,12 @@ var (
 
 // Add a new node the list of nodes.
 func Add(ctx context.Context, nodeConf *protocol.ClientConfig) {
-	p := GetPeer(ctx)
-	addr := p.Addr.String()
-	nodeList[addr] = NewNode(ctx, nodeConf)
+	addr := GetAddr(ctx)
+	if addr == "" {
+		log.Warning("node not added, invalid addr: %v", GetPeer(ctx))
+		return
+	}
+	nodeList[addr] = NewNode(ctx, addr, nodeConf)
 }
 
 // SetNotificationsChannel sets the communication channel for a given node.
@@ -68,9 +73,14 @@ func GetPeer(ctx context.Context) *peer.Peer {
 }
 
 // GetAddr of a node from the context
-func GetAddr(ctx context.Context) string {
+func GetAddr(ctx context.Context) (addr string) {
 	p := GetPeer(ctx)
-	return p.Addr.String()
+	host, _, err := net.SplitHostPort(p.Addr.String())
+	if err != nil {
+		return ""
+	}
+	addr = p.Addr.Network() + ":" + host
+	return addr
 }
 
 // GetAll nodes.
