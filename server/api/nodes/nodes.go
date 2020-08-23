@@ -44,6 +44,12 @@ func SetNotificationsChannel(notificationsStream protocol.UI_NotificationsServer
 	return nodeList[addr]
 }
 
+func SendNotifications(notif *protocol.Notification) {
+	for _, node := range nodeList {
+		node.SendNotification(notif)
+	}
+}
+
 // UpdateStats of a node.
 func UpdateStats(ctx context.Context, stats *protocol.Statistics) {
 	addr := GetAddr(ctx)

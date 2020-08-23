@@ -107,7 +107,9 @@ func (c *Client) OpenChannelWithNode(notificationsStream protocol.UI_Notificatio
 			goto Exit
 		case notif := <-node.GetNotifications():
 			log.Important("client.ChannelWithNode() sending notification:", notif)
-			node.NotificationsStream.Send(notif)
+			if err := node.NotificationsStream.Send(notif); err != nil {
+				log.Error("Error: %v", err)
+			}
 		}
 	}
 
