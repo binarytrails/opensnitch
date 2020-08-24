@@ -25,10 +25,18 @@ var (
 
 // menus related constants
 const (
+	// rules
 	NotAnswered           = "0"
 	Allow                 = "1"
 	Deny                  = "2"
 	ShowConnectionDetails = "3"
+	EditRule              = "4"
+	FilterByPath          = "1"
+	FilterByCommand       = "2"
+	FilterByUserID        = "3"
+	FilterByDstPort       = "4"
+	FilterByDstIP         = "5"
+	FilterByDstHost       = "6"
 
 	PAUSE          = "p"
 	RUN            = "r"
