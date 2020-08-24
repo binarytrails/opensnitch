@@ -13,17 +13,22 @@ import (
 	"github.com/gustavo-iniguez-goya/opensnitch/server/cli/menus"
 )
 
+var missedEvents []*protocol.Event
+
 // RulesList lists all the rules the nodes have.
 func RulesList() {
 	waitForStats()
+	resetBlinkingLabel(RULES)
 	rules := make(map[string]*protocol.Rule)
 	topCols := []string{"Num ", "Node                  ", "Name                                 ", "Action ", "Duration"}
 	rulNums := 0
+	missedLabel := log.Red("  MISSED EVENTS")
 	for {
 		if !getPauseStats() {
 			resetScreen()
 			showTopBar(topCols)
 			rulNums = 0
+			totalMissed := len(missedEvents)
 			for addr, node := range *nodes.GetAll() {
 				for idx, rule := range node.GetConfig().Rules {
 					rulNums++
@@ -31,8 +36,14 @@ func RulesList() {
 						fmt.Printf("  %-4d [%-20s] [%35s] [%5s] [%s]\n", idx, addr, rule.Name, rule.Action, rule.Duration)
 					}
 				}
+				if len(missedEvents) > 0 {
+					fmt.Printf("  %s\n", missedLabel)
+					for _, ev := range missedEvents {
+						printEvent(ev)
+					}
+				}
 			}
-			printVerticalPadding(rulNums)
+			printVerticalPadding(rulNums - totalMissed)
 		}
 		if getStopStats() {
 			return
@@ -48,15 +59,23 @@ func askRule(con *protocol.Connection) {
 	defer lock.Unlock()
 	pauseStats = true
 	timeoutCanceled := false
+	procName := path.Base(con.ProcessPath)
+	ruleName := fmt.Sprint(procName, "-", con.Protocol, "-sport", con.SrcPort, "-dport", con.DstPort)
+
 	ruleOp := &protocol.Operator{
 		Type:    api.RuleSimple,
 		Operand: api.FilterByPath,
 		Data:    con.ProcessPath,
 	}
+	rule := &protocol.Rule{
+		Name:     ruleName,
+		Enabled:  true,
+		Action:   api.ActionAllow,
+		Duration: api.Rule30s,
+		Operator: ruleOp,
+	}
 
-	procName := path.Base(con.ProcessPath)
 	// TODO: uglify rule name
-	ruleName := fmt.Sprint(procName, "-", con.Protocol, "-sport", con.SrcPort, "-dport", con.DstPort)
 	alertTitle := log.Bold(log.Red(fmt.Sprintf("**** %s is trying to establish a connection ****", procName)))
 	alertBody := log.Blue(fmt.Sprint(procName, ": ", con.SrcPort, ":", con.SrcIp, " -> ", con.DstIp, ":", con.DstPort))
 	alertButtons := log.Bold(fmt.Sprint(log.Green("✔ Allow (1)"), ", ", log.Red("✘ Deny (2)"), ", ", "Details (3)", ", ", "Options (4)"))
@@ -79,20 +98,11 @@ func askRule(con *protocol.Connection) {
 		}
 	})
 
-	timeoutCanceled, ruleName, ruleOp = askRulesMenu(con, ruleOp)
-
-	config.apiClient.AddNewRule(&protocol.Rule{
-		Name:     ruleName,
-		Enabled:  true,
-		Action:   api.ActionAllow,
-		Duration: api.Rule30s,
-		Operator: ruleOp,
-	})
-
+	timeoutCanceled, ruleName = askRulesMenu(con, rule)
+	config.apiClient.AddNewRule(rule)
 }
 
-func askRulesMenu(con *protocol.Connection, ruleOp *protocol.Operator) (cancelTimeout bool, ruleName string, newRuleOp *protocol.Operator) {
-	newRuleOp = ruleOp
+func askRulesMenu(con *protocol.Connection, rule *protocol.Rule) (cancelTimeout bool, ruleName string) {
 WaitAction:
 	printPrompt("")
 	switch key := <-menus.KeyPressedChan; key.Char {
@@ -111,13 +121,15 @@ WaitAction:
 		goto WaitAction
 
 	case menus.EditRule:
-		newRuleOp = editRule(ruleName, con)
+		editRule(ruleName, con, rule)
+		fmt.Printf("  %s - %s\n", rule.Operator.Type, rule.Operator.Data)
 		goto WaitAction
 
 	case menus.NotAnswered:
 		// TODO: configure default action
 		fmt.Printf("%s%*s\n\n", log.Bold(log.Green("✔ Connection ALLOWED")), ttyCols, " ")
 		ruleName = fmt.Sprint(ruleName, api.ActionAllow)
+		addMissedEvent(con, rule)
 	default:
 		goto WaitAction
 	}
@@ -125,11 +137,11 @@ WaitAction:
 	time.Sleep(1 * time.Second)
 
 	pauseStats = false
-	return cancelTimeout, ruleName, newRuleOp
+	return cancelTimeout, ruleName
 }
 
 // TODO: allow to edit more complex rules.
-func editRule(ruleName string, con *protocol.Connection) *protocol.Operator {
+func editRule(ruleName string, con *protocol.Connection, rule *protocol.Rule) {
 	filterBy := api.FilterByPath
 	filterData := ""
 	procArgs := strings.Join(con.ProcessArgs, " ")
@@ -170,9 +182,16 @@ WaitAction:
 	default:
 		goto WaitAction
 	}
-	return &protocol.Operator{
-		Type:    api.RuleSimple,
-		Operand: filterBy,
-		Data:    filterData,
-	}
+	rule.Operator.Type = api.RuleSimple
+	rule.Operator.Operand = filterBy
+	rule.Operator.Data = filterData
+
+}
+
+func addMissedEvent(con *protocol.Connection, rule *protocol.Rule) {
+	missedEvents = append(missedEvents,
+		&protocol.Event{
+			Time:       time.Now().Format("2006/01/02 00:01:02"),
+			Connection: con,
+			Rule:       rule})
 }
