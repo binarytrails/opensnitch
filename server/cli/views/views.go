@@ -33,6 +33,10 @@ var (
 	ttyRows = 80
 	ttyCols = 80
 
+	sortModeDescending = 0
+	sortModeAscending  = 1
+	sortMode           = sortModeAscending
+
 	keyPressedChan chan *menus.KeyEvent
 
 	viewNames = [...]string{
@@ -152,8 +156,30 @@ func unsetFilter() {
 	config.Filter = ""
 }
 
-func menuGeneral(cmd string) {
-	switch cmd {
+func sortAscending() {
+	sortMode = sortModeAscending
+}
+
+func sortDescending() {
+	sortMode = sortModeDescending
+}
+
+func menuGeneral(key *menus.KeyEvent) {
+	switch key.Key {
+	case menus.NEXTVIEWARROW:
+		nextView()
+		return
+	case menus.PREVVIEWARROW:
+		prevView()
+		return
+	case menus.SORTASCENDING:
+		sortAscending()
+		return
+	case menus.SORTDESCENDING:
+		sortDescending()
+		return
+	}
+	switch key.Char {
 	case menus.PAUSE:
 		pauseStats = true
 	case menus.CONTINUE, menus.RUN:
@@ -204,11 +230,11 @@ func menuGeneral(cmd string) {
 
 func readLiveMenu() {
 	select {
-	case cmd, ok := <-menus.KeyPressedChan:
-		if !ok || cmd.Char == "" {
+	case key, ok := <-menus.KeyPressedChan:
+		if !ok || key.Char == "" {
 			return
 		}
-		menuGeneral(cmd.Char)
+		menuGeneral(key)
 	default:
 	}
 }

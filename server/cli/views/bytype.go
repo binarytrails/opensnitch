@@ -1,6 +1,7 @@
 package views
 
 import (
+	"sort"
 	"time"
 )
 
@@ -14,10 +15,30 @@ const (
 	colUID     = "UID"
 )
 
+type event struct {
+	Key   string
+	Value uint64
+}
+
+func sortEvents(events map[string]uint64) *[]*event {
+	var eves []*event
+	for k, v := range events {
+		eves = append(eves, &event{k, v})
+	}
+	sort.Slice(eves, func(i, j int) bool {
+		if sortMode == sortModeAscending {
+			return eves[i].Value > eves[j].Value
+		}
+		return eves[i].Value < eves[j].Value
+	})
+	return &eves
+}
+
 // StatsByType shows the latest statistics of the node(s) by type.
 func StatsByType(vtype string) {
 	waitForStats()
 	colWhat := colHost
+	topCols := []string{colHits, "-", colWhat}
 
 	for {
 		if !getPauseStats() {
@@ -36,17 +57,17 @@ func StatsByType(vtype string) {
 				vstats = config.apiClient.GetLastStats().ByUid
 				colWhat = colUID
 			}
-			// TODO sort by hits
-
 			resetScreen()
-			showTopBar([]string{colHits, "-", colWhat})
-			for what, hits := range vstats {
+			topCols[2] = colWhat
+			showTopBar(topCols)
+
+			for _, e := range *sortEvents(vstats) {
 				if config.Filter != "" {
-					if what == config.Filter {
-						printStats(what, hits)
+					if e.Key == config.Filter {
+						printStats(e.Key, e.Value)
 					}
 				} else {
-					printStats(what, hits)
+					printStats(e.Key, e.Value)
 				}
 			}
 			printVerticalPadding(len(vstats))
