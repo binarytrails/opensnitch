@@ -148,7 +148,7 @@ func setFilter() {
 	if config.Filter != "" {
 		fmt.Printf("Current filter: %s\n", config.Filter)
 	}
-	fmt.Printf(log.BG_GREEN + log.FG_WHITE + "filter" + log.Bold(">") + log.RESET + " ")
+	printPrompt("filter")
 	config.Filter = menus.ReadLine()
 }
 

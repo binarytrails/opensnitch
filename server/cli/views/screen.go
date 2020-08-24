@@ -17,6 +17,11 @@ var (
 	eventTime   = ""
 )
 
+func printPrompt(text string) {
+	cleanLine()
+	fmt.Printf(log.BG_GREEN + log.FG_WHITE + text + log.Bold(">") + log.RESET + " ")
+}
+
 func printVerticalPadding(what int) {
 	if what < ttyRows {
 		for row := 0; row < ttyRows-what-2; row++ {
@@ -83,15 +88,15 @@ func printActionsMenu() {
 
 func printConnectionDetails(con *protocol.Connection) {
 	cleanLine()
-	fmt.Printf("\n\tUser ID:        \t %s\n", con.UserId)
-	fmt.Printf("\n\tInvoked command:\t")
+	fmt.Printf("\n  %s - %d:%s -> %s:%d\n", con.Protocol, con.SrcPort, con.SrcIp, con.DstIp, con.DstPort)
+	fmt.Printf("\tUser ID:        \t %d\n", con.UserId)
+	fmt.Printf("\tInvoked command:\t")
 	for _, parg := range con.ProcessArgs {
 		fmt.Printf(" %s", parg)
 	}
 	fmt.Printf("\n")
-	fmt.Printf("\n\tProcess path:   \t%s\n", con.ProcessPath)
-	fmt.Printf("\n\tProcess CWD:    \t%s\n", con.ProcessCwd)
-	fmt.Printf("\t %s - %d:%s -> %s:%d\n", con.Protocol, con.SrcPort, con.SrcIp, con.DstIp, con.DstPort)
+	fmt.Printf("\tProcess path:    \t%s\n", con.ProcessPath)
+	fmt.Printf("\tProcess CWD:     \t%s\n", con.ProcessCwd)
 	fmt.Printf("\n")
 	cleanLine()
 }
@@ -115,11 +120,6 @@ func printEvent(e *protocol.Event) {
 		eventAction = e.Rule.Action
 	}
 
-	dstHost := e.Connection.DstHost
-	if dstHost != e.Connection.DstIp {
-		dstHost += " (" + e.Connection.DstIp + ")"
-	}
-
 	fmt.Printf(printFormat,
 		eventTime,
 		config.Delimiter,
@@ -133,7 +133,7 @@ func printEvent(e *protocol.Event) {
 		config.Delimiter,
 		e.Connection.SrcIp,
 		config.Delimiter,
-		dstHost,
+		e.Connection.DstHost,
 		config.Delimiter,
 		e.Connection.DstPort,
 		config.Delimiter,
