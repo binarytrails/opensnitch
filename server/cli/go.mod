@@ -3,6 +3,7 @@ module github.com/gustavo-iniguez-goya/opensnitch/server/cli
 go 1.14
 
 replace (
+	github.com/gustavo-iniguez-goya/opensnitch/server/api => ../api
 	github.com/gustavo-iniguez-goya/opensnitch/server/cli/menus => ./menus
 	github.com/gustavo-iniguez-goya/opensnitch/server/cli/views => ./views
 )
