@@ -80,8 +80,7 @@ func ReadLine() (str string) {
 	for {
 		key := <-KeyPressedChan
 		switch {
-		case key.Key == keyboard.KeyEnter:
-		case key.Key == keyboard.KeyEsc:
+		case key.Key == keyboard.KeyEnter, key.Key == keyboard.KeyEsc:
 			goto Exit
 		default:
 			fmt.Printf("%s", key.Char)
