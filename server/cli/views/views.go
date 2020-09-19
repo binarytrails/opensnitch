@@ -30,9 +30,6 @@ var (
 	pauseStats = false
 	stopStats  = false
 
-	ttyRows = 80
-	ttyCols = 80
-
 	sortModeDescending = 0
 	sortModeAscending  = 1
 	sortMode           = sortModeAscending
@@ -89,7 +86,7 @@ func Init(apiClient *api.Client, conf Config) {
 	keyPressedChan = menus.Interactive()
 
 	go handleNewRules()
-	getTTYSize()
+	getTermSize()
 }
 
 // Show displays the given statistics.
