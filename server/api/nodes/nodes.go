@@ -103,7 +103,28 @@ func GetStats() (stats []*protocol.Statistics) {
 	return stats
 }
 
-// Total returns the number of saved nodes.
+// Get of active nodes
+func GetStatsSum(what int) (cons uint64) {
+	for _, node := range *GetAll() {
+		if node.GetStats() == nil {
+			continue
+		}
+		switch what {
+		case 0:
+			cons += node.GetStats().Connections
+		case 1:
+			cons += node.GetStats().Dropped
+		case 2:
+			cons += node.GetStats().Rules
+		case 3:
+			cons += uint64(len(node.GetStats().Events))
+		}
+	}
+
+	return cons
+}
+
+// Total returns the number of active nodes.
 func Total() int {
 	return len(nodeList)
 }
