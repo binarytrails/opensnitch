@@ -28,7 +28,6 @@ func RulesList() {
 			resetScreen()
 			showTopBar(topCols)
 			rulNums = 0
-			totalMissed := len(missedEvents)
 			for addr, node := range *nodes.GetAll() {
 				for idx, rule := range node.GetConfig().Rules {
 					rulNums++
@@ -36,14 +35,15 @@ func RulesList() {
 						printRule(idx, addr, rule)
 					}
 				}
-				if len(missedEvents) > 0 {
-					fmt.Printf("  %s\n", missedLabel)
-					for _, ev := range missedEvents {
-						printEvent(ev)
-					}
+			}
+			if len(missedEvents) > 0 {
+				fmt.Printf("  %s\n", missedLabel)
+				for _, ev := range missedEvents {
+					rulNums++
+					printEvent(ev)
 				}
 			}
-			printVerticalPadding(rulNums - totalMissed)
+			printVerticalPadding(rulNums)
 		}
 		if getStopStats() {
 			return
