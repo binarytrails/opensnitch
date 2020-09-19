@@ -20,7 +20,7 @@ func RulesList() {
 	waitForStats()
 	resetBlinkingLabel(RULES)
 	rules := make(map[string]*protocol.Rule)
-	topCols := []string{"Num ", "Node                  ", "Name                                 ", "Action ", "Duration"}
+	topCols := []string{"Num ", "Node                  ", "Action ", "Duration", "Name                                 "}
 	rulNums := 0
 	missedLabel := log.Red("  MISSED EVENTS")
 	for {
@@ -33,7 +33,7 @@ func RulesList() {
 				for idx, rule := range node.GetConfig().Rules {
 					rulNums++
 					if _, found := rules[rule.Name]; !found {
-						fmt.Printf("  %-4d [%-20s] [%35s] [%5s] [%s]\n", idx, addr, rule.Name, rule.Action, rule.Duration)
+						printRule(idx, addr, rule)
 					}
 				}
 				if len(missedEvents) > 0 {

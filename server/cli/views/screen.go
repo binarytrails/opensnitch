@@ -23,8 +23,8 @@ func printPrompt(text string) {
 }
 
 func printVerticalPadding(what int) {
-	if what < ttyRows {
-		for row := 0; row < ttyRows-what-2; row++ {
+	if what < int(ttyRows) {
+		for row := 0; row < int(ttyRows)-what-2; row++ {
 			fmt.Printf("\n")
 		}
 	}
@@ -101,9 +101,13 @@ func printConnectionDetails(con *protocol.Connection) {
 	cleanLine()
 }
 
+func printRule(idx int, nodeAddr string, rule *protocol.Rule) {
+	fmt.Printf("  %-4d [%-20s] [%5s] [%s] [%35s]\n", idx, nodeAddr, rule.Action, rule.Duration, rule.Name)
+}
+
 // print statistics by type (procs, hosts, ports, addrs...)
-func printStats(what string, hits uint64) {
-	fmt.Printf("  %-5d - %v%*s\n", hits, what, ttyCols-len(what)-10, ".")
+func printStats(nodeAddr, what string, hits uint64) {
+	fmt.Printf("  [%-20s] %-8d - %s\n", nodeAddr, hits, what)
 }
 
 // print details of an event
