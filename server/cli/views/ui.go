@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
+	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 )
 
 const (
@@ -34,6 +37,18 @@ const (
 	EVENTS
 	HELP
 )
+
+var (
+	ttyRows = uint16(80)
+	ttyCols = uint16(80)
+)
+
+type termSize struct {
+	Rows   uint16
+	Cols   uint16
+	Xpixel uint16
+	Ypixel uint16
+}
 
 var (
 	labels = map[int]string{
@@ -129,16 +144,35 @@ func showStatusBar() {
 		labelStatus = ""
 	}
 	uptime, _ := time.ParseDuration(fmt.Sprint(stats.Uptime, "s"))
+	uptimeLabel := fmt.Sprint(labels[UPTIME], " ", uptime, " ")
+	if nodes.Total() > 1 {
+		uptimeLabel = ""
+	}
 	log.Raw(fmt.Sprint(
 		labelStatus, // hidden if not paused
 		log.Wrap(fmt.Sprint("[", config.View, "]"), log.FG_WHITE+log.BG_LBLUE), " ",
-		labels[UPTIME], " ", uptime, " ",
-		labels[CONNECTIONS], " ", stats.Connections, " ",
-		labels[DENIES], " ", stats.Dropped, " ",
-		labelRules, " ", stats.Rules, " ",
-		labels[EVENTS], " ", len(stats.Events), " ",
+		uptimeLabel,
+		labels[CONNECTIONS], " ", nodes.GetStatsSum(0), " ",
+		labels[DENIES], " ", nodes.GetStatsSum(1), " ",
+		labelRules, " ", nodes.GetStatsSum(2), " ",
+		labels[EVENTS], " ", nodes.GetStatsSum(3), " ",
 		labels[HELP], " ",
 		"\r"))
+}
+
+func getTermSize() {
+	tSize := &termSize{}
+	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
+		uintptr(syscall.Stdin),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(tSize)))
+
+	if int(retCode) == -1 {
+		return
+	}
+
+	ttyRows = tSize.Rows
+	ttyCols = tSize.Cols
 }
 
 func getTTYSize() {
@@ -150,9 +184,8 @@ func getTTYSize() {
 }
 
 func resetScreen() {
-	cmd := exec.Command("clear")
-	cmd.Stdout = os.Stdout
-	cmd.Run()
+	getTermSize()
+	fmt.Printf("\033[1J\033[f")
 }
 
 func RestoreTTY() {
