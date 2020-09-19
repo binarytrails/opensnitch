@@ -44,7 +44,7 @@ func NewNode(ctx context.Context, addr string, nodeConf *protocol.ClientConfig) 
 }
 
 func (n *node) String() string {
-	return fmt.Sprintf("[%v]  -  [%-20s]  -  [%-24s]  -  [%s]  -  [%s]", n.lastSeen.Format(time.Stamp), n.addr, n.status, n.config.Version, n.config.Name)
+	return fmt.Sprintf("[%v]  -  [%-20s]  -  [%-24s]  -  [%s]  -  [%s] - %v", n.lastSeen.Format(time.Stamp), n.addr, n.status, n.config.Version, n.config.Name)
 }
 
 // Addr returns the address of the node.
@@ -73,6 +73,10 @@ func (n *node) SendNotification(notif *protocol.Notification) {
 func (n *node) UpdateStats(stats *protocol.Statistics) {
 	n.stats = stats
 	n.lastSeen = time.Now()
+}
+
+func (n *node) GetStats() *protocol.Statistics {
+	return n.stats
 }
 
 func (n *node) GetConfig() *protocol.ClientConfig {
