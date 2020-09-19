@@ -38,7 +38,7 @@ func (s *server) Ping(ctx context.Context, ping *protocol.PingRequest) (*protoco
 // AskRule waits for action on a new outgoing connection.
 // If it not answered, after n seconds it'll apply the default action
 func (s *server) AskRule(ctx context.Context, con *protocol.Connection) (*protocol.Rule, error) {
-	resultChan := s.apiClient.AskRule(con)
+	resultChan := s.apiClient.AskRule(ctx, con)
 	select {
 	case rule := <-resultChan:
 		return rule, nil

@@ -77,7 +77,7 @@ func (c *Client) GetLastStats() *protocol.Statistics {
 // AskRule sends the connection details through a channel.
 // A client must consume data on that channel, and send the response via the
 // rulesOutChan channel.
-func (c *Client) AskRule(con *protocol.Connection) chan *protocol.Rule {
+func (c *Client) AskRule(ctx context.Context, con *protocol.Connection) chan *protocol.Rule {
 	c.rulesInChan <- con
 	return c.rulesOutChan
 }
