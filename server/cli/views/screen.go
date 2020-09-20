@@ -107,7 +107,8 @@ func printRule(idx int, nodeAddr string, rule *protocol.Rule) {
 
 // print statistics by type (procs, hosts, ports, addrs...)
 func printStats(nodeAddr, what string, hits uint64) {
-	fmt.Printf("  [%-20s] %-8d - %s\n", nodeAddr, hits, what)
+	lineWidth := int(ttyCols) - (8 + 20 + len(what) + 8)
+	fmt.Printf("  [%-20s] %-8d - %s%*s\n", nodeAddr, hits, what, lineWidth, " ")
 }
 
 // print details of an event
