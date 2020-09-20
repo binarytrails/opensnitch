@@ -47,7 +47,7 @@ func init() {
 	flag.StringVar(&serverPort, "socket-port", ":50051", "Listening port for incoming nodes")
 	flag.StringVar(&viewsConfig.View, "show-stats", "", "View connections statistics, possible values: general, nodes, hosts, procs, addrs, ports, users, rules, nodes")
 	flag.StringVar(&viewsConfig.Delimiter, "stats-delimiter", "", "Delimiter to separate statistics fields when print style is 'plain'")
-	flag.IntVar(&viewsConfig.Limit, "stats-limit", 50, "Limit statistics")
+	flag.IntVar(&viewsConfig.Limit, "stats-limit", -1, "Limit statistics")
 	flag.StringVar(&viewsConfig.Style, "stats-style", views.ViewStylePretty, "Lists style: pretty, plain")
 	flag.StringVar(&viewsConfig.Filter, "stats-filter", "", "Filter statistics. For example: firefox")
 	flag.BoolVar(&viewsConfig.Loop, "live", true, "Live statistics")

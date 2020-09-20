@@ -2,32 +2,33 @@ package views
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
+	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 )
 
 // GeneralStats displays the latest statistics of the node(s).
 func GeneralStats() {
 	waitForStats()
 
-	limit := 0
 	totalEvents := 0
 	for {
 		if !getPauseStats() {
 			resetScreen()
-			totalEvents = len(config.apiClient.GetLastStats().Events)
-			limit = 0
-			if totalEvents >= config.Limit {
-				limit = totalEvents - config.Limit
-			}
-			// TODO: sortEvents()
-			for idx := limit; idx < totalEvents; idx++ {
+
+			allEvents := collectEvents()
+			totalEvents = len(allEvents)
+			for idx, event := range allEvents {
+				if idx == config.Limit {
+					break
+				}
 				if config.Filter != "" {
-					filterEvent(config.apiClient.GetLastStats().Events[idx])
+					filterEvent(event)
 				} else {
-					printEvent(config.apiClient.GetLastStats().Events[idx])
+					printEvent(event)
 				}
 			}
 			printVerticalPadding(totalEvents)
@@ -39,6 +40,24 @@ func GeneralStats() {
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
+}
+
+// collect events from all the connected nodes.
+func collectEvents() (events []*protocol.Event) {
+	for _, node := range *nodes.GetAll() {
+		if node.GetStats() == nil {
+			continue
+		}
+		events = append(events, node.GetStats().Events...)
+	}
+	sort.Slice(events, func(i, j int) bool {
+		if sortMode == sortModeAscending {
+			return events[i].Time < events[j].Time
+		}
+		return events[i].Time > events[j].Time
+	})
+
+	return events
 }
 
 func filterEvent(ev *protocol.Event) {
