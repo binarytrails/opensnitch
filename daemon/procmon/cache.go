@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -17,6 +18,7 @@ type Inode struct {
 
 // ProcEntry represents an item of the pidsCache
 type ProcEntry struct {
+	sync.RWMutex
 	Pid         int
 	FdPath      string
 	Descriptors []string
@@ -24,6 +26,7 @@ type ProcEntry struct {
 }
 
 var (
+	cLock sync.RWMutex
 	// cache of inodes, which help to not iterate over all the pidsCache and
 	// descriptors of /proc/<pid>/fd/
 	// 20-50us vs 50-80ms
@@ -40,10 +43,31 @@ var (
 	maxCachedPids        = 24
 )
 
+func (p *ProcEntry) getTime() int64 {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.Time.UnixNano()
+}
+
+func (p *ProcEntry) updateTime() {
+	p.Lock()
+	defer p.Unlock()
+
+	p.Time = time.Now()
+}
+
+func (p *ProcEntry) updateDescriptors(descriptors []string) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.Descriptors = descriptors
+}
+
 func addProcEntry(fdPath string, fdList []string, pid int) {
 	for n := range pidsCache {
 		if pidsCache[n].Pid == pid {
-			pidsCache[n].Time = time.Now()
+			pidsCache[n].updateTime()
 			return
 		}
 	}
@@ -58,8 +82,8 @@ func addProcEntry(fdPath string, fdList []string, pid int) {
 
 func sortProcEntries() {
 	sort.Slice(pidsCache, func(i, j int) bool {
-		t := pidsCache[i].Time.UnixNano()
-		u := pidsCache[j].Time.UnixNano()
+		t := pidsCache[i].getTime()
+		u := pidsCache[j].getTime()
 		return t > u || t == u
 	})
 }
@@ -122,7 +146,7 @@ func getPidFromCache(inode int, inodeKey string, expect string) (int, int) {
 		procEntry := pidsCache[n]
 
 		if idxDesc := getPidDescriptorsFromCache(procEntry.Pid, procEntry.FdPath, expect, procEntry.Descriptors); idxDesc != -1 {
-			pidsCache[n].Time = time.Now()
+			pidsCache[n].updateTime()
 			return procEntry.Pid, n
 		}
 
@@ -132,9 +156,9 @@ func getPidFromCache(inode int, inodeKey string, expect string) (int, int) {
 			continue
 		}
 
-		pidsCache[n].Descriptors = descriptors
+		pidsCache[n].updateDescriptors(descriptors)
 		if idxDesc := getPidDescriptorsFromCache(procEntry.Pid, procEntry.FdPath, expect, descriptors); idxDesc != -1 {
-			pidsCache[n].Time = time.Now()
+			pidsCache[n].updateTime()
 			return procEntry.Pid, n
 		}
 	}

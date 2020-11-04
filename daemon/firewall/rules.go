@@ -29,13 +29,15 @@ const (
 var (
 	lock = sync.Mutex{}
 
-	queueNum = 0
+	queueNum = "0"
 	running  = false
 	// check that rules are loaded every 5s
 	rulesChecker       = time.NewTicker(time.Second * 20)
 	rulesCheckerChan   = make(chan bool)
-	regexRulesQuery, _ = regexp.Compile(`NFQUEUE.*ctstate NEW,RELATED.*NFQUEUE num.*bypass`)
+	regexRulesQuery, _ = regexp.Compile(`NFQUEUE.*ctstate NEW,RELATED.*NFQUEUE.*bypass.*`)
 	regexDropQuery, _  = regexp.Compile(`DROP.*mark match 0x18ba5`)
+
+	queueTargets = "--queue-balance"
 )
 
 // RunRule inserts or deletes a firewall rule.
@@ -71,13 +73,14 @@ func RunRule(action Action, enable bool, logError bool, rule []string) error {
 // QueueDNSResponses redirects DNS responses to us, in order to keep a cache
 // of resolved domains.
 // INPUT --protocol udp --sport 53 -j NFQUEUE --queue-num 0 --queue-bypass
-func QueueDNSResponses(enable bool, logError bool, qNum int) (err error) {
+func QueueDNSResponses(enable bool, logError bool, qNum string) (err error) {
 	return RunRule(INSERT, enable, logError, []string{
 		"INPUT",
 		"--protocol", "udp",
 		"--sport", "53",
 		"-j", "NFQUEUE",
-		"--queue-num", fmt.Sprintf("%d", qNum),
+		queueTargets,
+		qNum,
 		"--queue-bypass",
 	})
 }
@@ -85,15 +88,16 @@ func QueueDNSResponses(enable bool, logError bool, qNum int) (err error) {
 // QueueConnections inserts the firewall rule which redirects connections to us.
 // They are queued until the user denies/accept them, or reaches a timeout.
 // OUTPUT -t mangle -m conntrack --ctstate NEW,RELATED -j NFQUEUE --queue-num 0 --queue-bypass
-func QueueConnections(enable bool, logError bool, qNum int) (err error) {
+func QueueConnections(enable bool, logError bool, qNum string) (err error) {
 	return RunRule(ADD, enable, logError, []string{
 		"OUTPUT",
 		"-t", "mangle",
 		"-m", "conntrack",
 		"--ctstate", "NEW,RELATED",
 		"-j", "NFQUEUE",
-		"--queue-num", fmt.Sprintf("%d", qNum),
+		queueTargets, qNum,
 		"--queue-bypass",
+		"--queue-cpu-fanout",
 	})
 }
 
@@ -138,7 +142,7 @@ func AreRulesLoaded() bool {
 
 // StartCheckingRules checks periodically if the rules are loaded.
 // If they're not, we insert them again.
-func StartCheckingRules(qNum int) {
+func StartCheckingRules(qNum string) {
 	for {
 		select {
 		case <-rulesCheckerChan:
@@ -170,7 +174,11 @@ func Stop(qNum *int) {
 		return
 	}
 	if qNum != nil {
-		queueNum = *qNum
+		if *qNum > 1 {
+			queueNum = fmt.Sprint("0", ":", *qNum)
+		} else {
+			queueNum = fmt.Sprint(*qNum)
+		}
 	}
 
 	StopCheckingRules()
@@ -186,8 +194,11 @@ func Init(qNum *int) {
 	if running {
 		return
 	}
-	if qNum != nil {
-		queueNum = *qNum
+	if *qNum > 1 {
+		queueNum = fmt.Sprint(0, ":", *qNum)
+	} else {
+		queueTargets = "--queue-num"
+		queueNum = fmt.Sprint(*qNum)
 	}
 
 	if err := QueueDNSResponses(true, true, queueNum); err != nil {

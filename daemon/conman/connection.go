@@ -34,7 +34,7 @@ var showUnknownCons = false
 
 // Parse extracts the IP layers from a network packet to determine what
 // process generated a connection.
-func Parse(nfp netfilter.Packet, interceptUnknown bool) *Connection {
+func Parse(nfp *netfilter.Packet, interceptUnknown bool) *Connection {
 	showUnknownCons = interceptUnknown
 	ipLayer := nfp.Packet.Layer(layers.LayerTypeIPv4)
 	ipLayer6 := nfp.Packet.Layer(layers.LayerTypeIPv6)
@@ -48,7 +48,7 @@ func Parse(nfp netfilter.Packet, interceptUnknown bool) *Connection {
 			return nil
 		}
 
-		con, err := NewConnection6(&nfp, ip)
+		con, err := NewConnection6(nfp, ip)
 		if err != nil {
 			log.Debug("%s", err)
 			return nil
@@ -63,7 +63,7 @@ func Parse(nfp netfilter.Packet, interceptUnknown bool) *Connection {
 			return nil
 		}
 
-		con, err := NewConnection(&nfp, ip)
+		con, err := NewConnection(nfp, ip)
 		if err != nil {
 			log.Debug("%s", err)
 			return nil

@@ -31,8 +31,8 @@ var (
 	logFile       = ""
 	rulesPath     = "rules"
 	noLiveReload  = false
-	queueNum      = 0
 	workers       = 16
+	queueNumbers  = 0
 	debug         = false
 	warning       = false
 	important     = false
@@ -60,8 +60,8 @@ func init() {
 	flag.StringVar(&procmonMethod, "process-monitor-method", procmonMethod, "How to search for processes path. Options: ftrace, audit (experimental), proc (default)")
 	flag.StringVar(&uiSocket, "ui-socket", uiSocket, "Path the UI gRPC service listener (https://github.com/grpc/grpc/blob/master/doc/naming.md).")
 	flag.StringVar(&rulesPath, "rules-path", rulesPath, "Path to load JSON rules from.")
-	flag.IntVar(&queueNum, "queue-num", queueNum, "Netfilter queue number.")
 	flag.IntVar(&workers, "workers", workers, "Number of concurrent workers.")
+	flag.IntVar(&queueNumbers, "queue-numbers", queueNumbers, "Number of concurrent queues.")
 	flag.BoolVar(&noLiveReload, "no-live-reload", debug, "Disable rules live reloading.")
 
 	flag.StringVar(&logFile, "log-file", logFile, "Write logs to this file instead of the standard output.")
@@ -124,11 +124,12 @@ func worker(id int) {
 			goto Exit
 		default:
 			pkt, ok := <-wrkChan
+			log.Debug("Packet on worker #%d", id)
 			if !ok {
 				log.Debug("worker channel closed", id)
 				goto Exit
 			}
-			onPacket(pkt)
+			onPacket(&pkt)
 		}
 	}
 Exit:
@@ -146,7 +147,7 @@ func setupWorkers() {
 
 func doCleanup(queue *netfilter.Queue) {
 	log.Info("Cleaning up ...")
-	firewall.Stop(&queueNum)
+	firewall.Stop(&queueNumbers)
 	procmon.End()
 	uiClient.Close()
 	queue.Close()
@@ -169,7 +170,26 @@ func doCleanup(queue *netfilter.Queue) {
 	}
 }
 
-func onPacket(packet netfilter.Packet) {
+func pktQueue(id int, pktQueue <-chan netfilter.Packet) {
+	log.Info("setting up async queue ", id)
+	for true {
+		select {
+		case <-ctx.Done():
+			goto Exit
+		default:
+			pkt, ok := <-pktQueue
+			if !ok {
+				goto Exit
+			}
+			log.Info("New packet on nfqueue #%d", id)
+			wrkChan <- pkt
+		}
+	}
+Exit:
+	fmt.Println("pktQueue exit: ", id)
+}
+
+func onPacket(packet *netfilter.Packet) {
 	// DNS response, just parse, track and accept.
 	if dns.TrackAnswers(packet.Packet) == true {
 		packet.SetVerdict(netfilter.NF_ACCEPT)
@@ -180,7 +200,7 @@ func onPacket(packet netfilter.Packet) {
 	// Parse the connection state
 	con := conman.Parse(packet, uiClient.InterceptUnknown())
 	if con == nil {
-		applyDefaultAction(&packet)
+		applyDefaultAction(packet)
 		return
 	}
 	// accept our own connections
@@ -190,7 +210,7 @@ func onPacket(packet netfilter.Packet) {
 	}
 
 	// search a match in preloaded rules
-	r := acceptOrDeny(&packet, con)
+	r := acceptOrDeny(packet, con)
 
 	stats.OnConnectionEvent(con, r, r == nil)
 }
@@ -289,10 +309,7 @@ func main() {
 	flag.Parse()
 
 	// clean any possible residual firewall rule
-	firewall.QueueDNSResponses(false, false, queueNum)
-	firewall.QueueConnections(false, false, queueNum)
-	firewall.DropMarked(false, false)
-
+	firewall.Stop(&queueNumbers)
 	setupLogging()
 
 	if cpuProfile != "" {
@@ -322,12 +339,15 @@ func main() {
 
 	// prepare the queue
 	setupWorkers()
-	queue, err := netfilter.NewQueue(uint16(queueNum))
-	if err != nil {
-		log.Warning("Is opnensitchd already running?")
-		log.Fatal("Error while creating queue #%d: %s", queueNum, err)
+	for qID := 1; qID <= queueNumbers; qID++ {
+		log.Info("Opening queue #%d", qID)
+		queue, err := netfilter.NewQueue(uint16(qID))
+		if err != nil {
+			log.Warning("Is opnensitchd already running?")
+			log.Fatal("Error while creating queue #%d: %s", qID, err)
+		}
+		go pktQueue(qID, queue.Packets())
 	}
-	pktChan = queue.Packets()
 
 	uiClient = ui.NewClient(uiSocket, stats, rules)
 	if overwriteLogging() {
@@ -341,18 +361,13 @@ func main() {
 	procmon.Init()
 
 	// queue is ready, run firewall rules
-	firewall.Init(&queueNum)
+	firewall.Init(&queueNumbers)
 
-	log.Info("Running on netfilter queue #%d ...", queueNum)
+	log.Info("Running on netfilter queue #%d ...", queueNumbers)
 	for {
 		select {
 		case <-ctx.Done():
 			goto Exit
-		case pkt, ok := <-pktChan:
-			if !ok {
-				goto Exit
-			}
-			wrkChan <- pkt
 		}
 	}
 Exit:
