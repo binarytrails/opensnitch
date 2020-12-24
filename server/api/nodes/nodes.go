@@ -2,9 +2,10 @@ package nodes
 
 import (
 	"net"
+	"time"
 
+	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
-	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/peer"
 )
@@ -103,7 +104,7 @@ func GetStats() (stats []*protocol.Statistics) {
 	return stats
 }
 
-// Get of active nodes
+// GetStatsSum returns total connections for a particular view
 func GetStatsSum(what int) (cons uint64) {
 	for _, node := range *GetAll() {
 		if node.GetStats() == nil {
@@ -132,4 +133,22 @@ func Total() int {
 func isConnected(addr string) bool {
 	_, found := nodeList[addr]
 	return found
+}
+
+// StartFirewall starts the interception of connections on the nodes
+func StartFirewall() {
+	SendNotifications(
+		&protocol.Notification{
+			Id:   uint64(time.Now().UnixNano()),
+			Type: protocol.Action_LOAD_FIREWALL,
+		})
+}
+
+// StopFirewall stops connections interception on the nodes
+func StopFirewall() {
+	SendNotifications(
+		&protocol.Notification{
+			Id:   uint64(time.Now().UnixNano()),
+			Type: protocol.Action_UNLOAD_FIREWALL,
+		})
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
-	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/cli/menus"
@@ -85,7 +84,7 @@ func Init(apiClient *api.Client, conf Config) {
 	config.apiClient = apiClient
 	keyPressedChan = menus.Interactive()
 
-	go handleNewRules()
+	//go handleNewRules()
 	getTermSize()
 }
 
@@ -200,18 +199,10 @@ func menuGeneral(key *menus.KeyEvent) {
 		pauseStats = true
 		printActionsMenu()
 	case menus.STOPFIREWALL:
-		nodes.SendNotifications(
-			&protocol.Notification{
-				Id:   uint64(time.Now().UnixNano()),
-				Type: protocol.Action_UNLOAD_FIREWALL,
-			})
+		nodes.StopFirewall()
 		pauseStats = false
 	case menus.STARTFIREWALL:
-		nodes.SendNotifications(
-			&protocol.Notification{
-				Id:   uint64(time.Now().UnixNano()),
-				Type: protocol.Action_LOAD_FIREWALL,
-			})
+		nodes.StartFirewall()
 		pauseStats = false
 	// case menus.CHANGECONFIG:
 	// case menus.DELETERULE

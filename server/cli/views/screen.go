@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
-	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api"
 )
 
@@ -64,14 +64,15 @@ func PrintStatus() {
 
 func printHelp() {
 	cleanLine()
-	fmt.Printf("\n\tr/c - continue viewing statistics\n")
-	fmt.Printf("\tp   - pause statistics\n")
-	fmt.Printf("\tq   - stop and exit\n")
-	fmt.Printf("\ta   - actions\n")
-	fmt.Printf("\t><  - view next/preview statistics\n")
+	fmt.Printf("\n\tr/c\t- continue viewing statistics\n")
+	fmt.Printf("\tp\t- pause statistics\n")
+	fmt.Printf("\tq\t- stop and exit\n")
+	fmt.Printf("\ta\t- actions\n")
+	fmt.Printf("\t><\t- view next/preview statistics\n")
+	fmt.Printf("\tUp/Down\t- sort ascending/descending\n")
 	//fmt.Printf("\tl   - limit statistics\n")
-	fmt.Printf("\tf/F   - filter statistics (enable/disable)\n")
-	fmt.Printf("\th   - help\n")
+	fmt.Printf("\tf/F\t- filter statistics (enable/disable)\n")
+	fmt.Printf("\th\t- help\n")
 	fmt.Printf("\n")
 	cleanLine()
 }
@@ -123,6 +124,11 @@ func printEvent(e *protocol.Event) {
 	if config.Style == ViewStylePlain {
 		printFormat = printFormatPlain
 		eventAction = e.Rule.Action
+		eventTime = e.Time
+	}
+	dstHost := e.Connection.DstHost
+	if dstHost == "" {
+		dstHost = e.Connection.DstIp
 	}
 
 	fmt.Printf(printFormat,
@@ -138,7 +144,7 @@ func printEvent(e *protocol.Event) {
 		config.Delimiter,
 		e.Connection.SrcIp,
 		config.Delimiter,
-		e.Connection.DstHost,
+		dstHost,
 		config.Delimiter,
 		e.Connection.DstPort,
 		config.Delimiter,

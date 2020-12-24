@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
+	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 )
 

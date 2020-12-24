@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
-	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"golang.org/x/net/context"
 )
 

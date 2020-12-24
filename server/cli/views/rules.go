@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
-	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/cli/menus"

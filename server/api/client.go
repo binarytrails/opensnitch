@@ -1,17 +1,16 @@
 package api
 
 import (
-	"sync"
-
+	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
-	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 	"golang.org/x/net/context"
+	"sync"
 )
 
 // Client struct groups the API functionality to communicate with the nodes
 type Client struct {
-	Lock         sync.RWMutex
+	sync.RWMutex
 	lastStats    *protocol.Statistics
 	nodesChan    chan bool
 	rulesInChan  chan *protocol.Connection
@@ -59,16 +58,16 @@ func (c *Client) UpdateStats(ctx context.Context, stats *protocol.Statistics) {
 	if stats == nil {
 		return
 	}
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
+	c.Lock()
+	defer c.Unlock()
 	c.lastStats = stats
 	nodes.UpdateStats(ctx, stats)
 }
 
 // GetLastStats returns latest stasts from a node.
 func (c *Client) GetLastStats() *protocol.Statistics {
-	c.Lock.RLock()
-	defer c.Lock.RUnlock()
+	c.RLock()
+	defer c.RUnlock()
 
 	// TODO: return last stats for a given node
 	return c.lastStats
@@ -84,7 +83,7 @@ func (c *Client) AskRule(ctx context.Context, con *protocol.Connection) chan *pr
 
 // AddNewNode adds a new node to the list of connected nodes.
 func (c *Client) AddNewNode(ctx context.Context, nodeConf *protocol.ClientConfig) {
-	log.Info("AddNewNode: %s - %s, %v", nodeConf.Name, nodeConf.Version)
+	log.Info("AddNewNode: %s - %s", nodeConf.Name, nodeConf.Version)
 	nodes.Add(ctx, nodeConf)
 	c.nodesChan <- true
 }

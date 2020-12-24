@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gustavo-iniguez-goya/opensnitch/daemon/ui/protocol"
+	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 )
 
@@ -48,6 +48,7 @@ func collectEvents() (events []*protocol.Event) {
 		if node.GetStats() == nil {
 			continue
 		}
+		// TODO: addToDb() mem, postgre, etc
 		events = append(events, node.GetStats().Events...)
 	}
 	sort.Slice(events, func(i, j int) bool {
@@ -72,7 +73,8 @@ func filterEvent(ev *protocol.Event) {
 	case ev.Rule.Action:
 		printEvent(ev)
 	}
-	if strings.Contains(ev.Connection.ProcessPath, config.Filter) {
+	if strings.Contains(ev.Connection.ProcessPath, config.Filter) ||
+		strings.Contains(ev.Connection.DstHost, config.Filter) {
 		printEvent(ev)
 	}
 }
