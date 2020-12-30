@@ -3,7 +3,6 @@ package views
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api"
@@ -18,146 +17,131 @@ type Config struct {
 	Style     string
 	Limit     int
 	Filter    string
-	//Fields    []string
 	apiClient *api.Client
 }
 
 var (
-	lock   sync.RWMutex
-	config Config
-
-	pauseStats = false
-	stopStats  = false
-
-	sortModeDescending = 0
-	sortModeAscending  = 1
-	sortMode           = sortModeAscending
+	lock          sync.RWMutex
+	config        *Config
+	ui            *UI
+	screen        *Screen
+	bView         *BaseView
+	vNodes        *ViewNodes
+	vEvents       *ViewEvents
+	vEventsByType *ViewEventsByType
+	vRules        *ViewRules
 
 	keyPressedChan chan *menus.KeyEvent
 
 	viewNames = [...]string{
-		ViewGeneral,
-		ViewHosts,
-		ViewProcs,
-		ViewAddrs,
-		ViewPorts,
-		ViewUsers,
-		ViewRules,
-		ViewNodes,
+		ViewNameGeneral,
+		ViewNameHosts,
+		ViewNameProcs,
+		ViewNameAddrs,
+		ViewNamePorts,
+		ViewNameUsers,
+		ViewNameRules,
+		ViewNameNodes,
 	}
-	viewList = map[string]int{
-		ViewGeneral: 0,
-		ViewHosts:   1,
-		ViewProcs:   2,
-		ViewAddrs:   3,
-		ViewPorts:   4,
-		ViewUsers:   5,
-		ViewRules:   6,
-		ViewNodes:   7,
+	viewList = map[string]int8{
+		ViewNameGeneral: 0,
+		ViewNameHosts:   1,
+		ViewNameProcs:   2,
+		ViewNameAddrs:   3,
+		ViewNamePorts:   4,
+		ViewNameUsers:   5,
+		ViewNameRules:   6,
+		ViewNameNodes:   7,
 	}
-	totalViews = 7
+	totalViews = int8(8)
 )
 
 const (
-	appName     = "OpenSnitch"
-	ViewGeneral = "general"
-	ViewHosts   = "hosts"
-	ViewProcs   = "procs"
-	ViewAddrs   = "addrs"
-	ViewPorts   = "ports"
-	ViewUsers   = "users"
-	ViewRules   = "rules"
-	ViewNodes   = "nodes"
+	appName    = "OpenSnitch"
+	appVersion = "0.0.1"
+
+	ViewNameGeneral = "general"
+	ViewNameHosts   = "hosts"
+	ViewNameProcs   = "procs"
+	ViewNameAddrs   = "addrs"
+	ViewNamePorts   = "ports"
+	ViewNameUsers   = "users"
+	ViewNameRules   = "rules"
+	ViewNameNodes   = "nodes"
 
 	ViewStylePlain  = "plain"
 	ViewStylePretty = "pretty"
-	// The extra %s corresponds to the delimiter, which for this view is always ""
-	printFormatPretty = "%v %s[ %-22s]%s [%-4s]%s [%-5d]%s - %-5v%s:%-15v%s -> %16v%s:%-5v%s - %s%s\n"
-	printFormatPlain  = "%v%s%s%s%s%s%d%s%v%s%v%s%v%s%v%s%s%s\n"
 
 	defaultRulesTimeout = api.Rule15s
 )
 
+// New returns an empty Config struct
+func New() *Config {
+	return &Config{}
+}
+
 // Init configures the views.
-func Init(apiClient *api.Client, conf Config) {
+func Init(apiClient *api.Client, conf *Config) {
 	config = conf
 	config.apiClient = apiClient
+
+	bView = NewBaseView()
+	ui = NewUI(apiClient, conf)
+	screen = NewScreen(ui, apiClient)
+
+	vNodes = NewViewNodes(screen, bView)
+	vEvents = NewViewEvents(screen, bView)
+	vEventsByType = NewViewByType(screen, bView)
+	vRules = NewViewRules(screen, bView)
+
 	keyPressedChan = menus.Interactive()
 
 	//go handleNewRules()
-	getTermSize()
 }
 
 // Show displays the given statistics.
 func Show() {
 	switch config.View {
-	case ViewGeneral:
-		GeneralStats()
-	case ViewHosts, ViewProcs, ViewAddrs, ViewPorts, ViewUsers:
-		StatsByType(config.View)
-	case ViewNodes:
-		NodesList()
-	case ViewRules:
-		RulesList()
+	case ViewNameGeneral:
+		vEvents.Print()
+	case ViewNameHosts, ViewNameProcs, ViewNameAddrs, ViewNamePorts, ViewNameUsers:
+		vEventsByType.Print(viewList[config.View], config.View)
+	case ViewNameNodes:
+		vNodes.Print()
+	case ViewNameRules:
+		vRules.Print()
 	default:
 		log.Info("unknown view:", config.View)
 	}
 }
 
+func PrintStatus() {
+	screen.PrintStatus()
+}
+
 func exit() {
-	cleanLine()
+	ui.cleanLine()
 	menus.Exit()
 
 	lock.Lock()
 	defer lock.Unlock()
-	stopStats = true
-}
-
-func getPauseStats() bool {
-	lock.RLock()
-	defer lock.RUnlock()
-
-	return pauseStats
-}
-
-func getStopStats() bool {
-	lock.RLock()
-	defer lock.RUnlock()
-
-	return stopStats || !config.Loop
+	ui.stopStats = true
 }
 
 // just after start the stats are not ready to be consumed, because there're no
 // nodes connected, so we need to wait for new nodes.
-func waitForStats() {
-	tries := 30
-	for config.apiClient.GetLastStats() == nil && tries > 0 {
-		time.Sleep(1 * time.Second)
-		tries--
-		log.Raw(log.Wrap("No stats yet, waiting ", log.GREEN)+" %d\r", tries)
-	}
-	cleanLine()
-}
 
 func setFilter() {
-	cleanLine()
+	ui.cleanLine()
 	if config.Filter != "" {
 		fmt.Printf("Current filter: %s\n", config.Filter)
 	}
-	printPrompt("filter")
+	screen.printPrompt("filter")
 	config.Filter = menus.ReadLine()
 }
 
 func unsetFilter() {
 	config.Filter = ""
-}
-
-func sortAscending() {
-	sortMode = sortModeAscending
-}
-
-func sortDescending() {
-	sortMode = sortModeDescending
 }
 
 func menuGeneral(key *menus.KeyEvent) {
@@ -169,24 +153,24 @@ func menuGeneral(key *menus.KeyEvent) {
 		prevView()
 		return
 	case menus.SORTASCENDING:
-		sortAscending()
+		vEvents.sortAscending()
 		return
 	case menus.SORTDESCENDING:
-		sortDescending()
+		vEvents.sortDescending()
 		return
 	}
 	switch key.Char {
 	case menus.PAUSE:
-		pauseStats = true
+		ui.pauseStats = true
 	case menus.CONTINUE, menus.RUN:
-		pauseStats = false
+		ui.pauseStats = false
 	case menus.QUIT:
-		pauseStats = true
+		ui.pauseStats = true
 		exit()
 		return
 	case menus.HELP:
-		pauseStats = true
-		printHelp()
+		ui.pauseStats = true
+		screen.printHelp()
 	case menus.NEXTVIEW:
 		nextView()
 	case menus.PREVVIEW:
@@ -196,14 +180,14 @@ func menuGeneral(key *menus.KeyEvent) {
 	case menus.DISABLEFILTER:
 		unsetFilter()
 	case menus.ACTIONS:
-		pauseStats = true
-		printActionsMenu()
+		ui.pauseStats = true
+		screen.printActionsMenu()
 	case menus.STOPFIREWALL:
 		nodes.StopFirewall()
-		pauseStats = false
+		ui.pauseStats = false
 	case menus.STARTFIREWALL:
 		nodes.StartFirewall()
-		pauseStats = false
+		ui.pauseStats = false
 	// case menus.CHANGECONFIG:
 	// case menus.DELETERULE
 	// TODO
@@ -219,7 +203,7 @@ func menuGeneral(key *menus.KeyEvent) {
 func readLiveMenu() {
 	select {
 	case key, ok := <-menus.KeyPressedChan:
-		if !ok || key.Char == "" {
+		if !ok || key == nil || key.Char == "" {
 			return
 		}
 		menuGeneral(key)
@@ -230,12 +214,12 @@ func readLiveMenu() {
 // start listening for new rules and ask the user to allow or deny them.
 func handleNewRules() {
 	for {
-		if getStopStats() {
+		if ui.getStopStats() {
 			return
 		}
 		select {
-		case con := <-config.apiClient.WaitForRules():
-			askRule(con)
+		case con := <-ui.aClient.WaitForRules():
+			vRules.askRule(con)
 		}
 	}
 }

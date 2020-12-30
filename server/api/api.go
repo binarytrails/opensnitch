@@ -88,7 +88,7 @@ func socketIsReady(proto, port string) bool {
 }
 
 // StartServer start listening for incoming nodes/clients.
-func startServer(client *Client, proto, port string) {
+func StartServer(client *Client, proto, port string) {
 	if socketIsReady(proto, port) == false {
 		return
 	}

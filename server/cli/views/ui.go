@@ -10,7 +10,9 @@ import (
 	"unsafe"
 
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
+	"github.com/gustavo-iniguez-goya/opensnitch/server/api"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
+	"github.com/gustavo-iniguez-goya/opensnitch/server/api/storage"
 )
 
 const (
@@ -38,11 +40,6 @@ const (
 	HELP
 )
 
-var (
-	ttyRows = uint16(80)
-	ttyCols = uint16(80)
-)
-
 type termSize struct {
 	Rows   uint16
 	Cols   uint16
@@ -50,44 +47,109 @@ type termSize struct {
 	Ypixel uint16
 }
 
-var (
-	labels = map[int]string{
-		PAUSED:      log.Wrap("[PAUSED] ", log.FG_WHITE+log.BG_YELLOW),
-		UPTIME:      log.Wrap("Uptime:", log.FG_WHITE+log.BG_GREEN),
-		RULES:       log.Wrap("Rules:", log.FG_WHITE+log.BG_GREEN),
-		CONNECTIONS: log.Wrap("Connections:", log.FG_WHITE+log.BG_GREEN),
-		DENIES:      log.Wrap("Denies:", log.FG_WHITE+log.BG_GREEN),
-		EVENTS:      log.Wrap("Events:", log.FG_WHITE+log.BG_GREEN),
-		HELP:        log.Wrap("(h - help, p - pause, q - quit)", log.FG_WHITE+log.BG_LBLUE),
+// UI holds the functionality about the UI, and how
+// the data is presented to the user.
+type UI struct {
+	aClient   *api.Client
+	viewsConf *Config
+
+	labels       map[int]string
+	pendingRules int
+	labelRules   string
+	labelStatus  string
+
+	stopStats  bool
+	pauseStats bool
+
+	ttyRows uint16
+	ttyCols uint16
+}
+
+// NewUI returns a new UI struct and initializes default values.
+func NewUI(aClient *api.Client, conf *Config) *UI {
+	ui := &UI{
+		viewsConf: conf,
+		aClient:   aClient,
+		labels: map[int]string{
+			PAUSED:      log.Wrap("[PAUSED] ", log.FG_WHITE+log.BG_YELLOW),
+			UPTIME:      log.Wrap("Uptime:", log.FG_WHITE+log.BG_GREEN),
+			RULES:       log.Wrap("Rules:", log.FG_WHITE+log.BG_GREEN),
+			CONNECTIONS: log.Wrap("Connections:", log.FG_WHITE+log.BG_GREEN),
+			DENIES:      log.Wrap("Denies:", log.FG_WHITE+log.BG_GREEN),
+			EVENTS:      log.Wrap("Events:", log.FG_WHITE+log.BG_GREEN),
+			HELP:        log.Wrap("(h - help, p - pause, q - quit)", log.FG_WHITE+log.BG_LBLUE),
+		},
 	}
 
-	pendingRules = 0
-	labelRules   = labels[RULES]
-	labelStatus  = ""
-)
+	ui.pendingRules = 0
+	ui.labelRules = ui.labels[RULES]
+	ui.labelStatus = ""
 
-func setBlinkingLabel(labelIdx int) {
+	ui.getTermSize()
+
+	return ui
+}
+
+func (u *UI) waitForStats() {
+	tries := 30
+	for u.aClient.GetLastStats() == nil && tries > 0 {
+		time.Sleep(1 * time.Second)
+		tries--
+		log.Raw(log.Wrap("No stats yet, waiting ", log.GREEN)+" %d\r", tries)
+	}
+	u.cleanLine()
+}
+
+func (u *UI) getGlobalStats() *storage.Statistics {
+	stats := &storage.Statistics{}
+	dbStats := u.aClient.GetStats()
+
+	if len(*dbStats) == 1 {
+		stats.Uptime = (*dbStats)[0].Uptime
+	}
+
+	for _, s := range *dbStats {
+		stats.Rules += s.Rules
+		stats.DNSResponses += s.DNSResponses
+		stats.Connections += s.Connections
+		stats.Dropped += s.Dropped
+		stats.RuleHits += s.RuleHits
+		stats.RuleMisses += s.RuleMisses
+	}
+
+	return stats
+}
+
+func (u *UI) getPauseStats() bool {
+	return u.pauseStats
+}
+
+func (u *UI) getStopStats() bool {
+	return u.stopStats || !u.viewsConf.Loop
+}
+
+func (u *UI) setBlinkingLabel(labelIdx int) {
 	switch labelIdx {
 	case RULES:
-		pendingRules++
-		labelRules = FG_BLINK + log.FG_WHITE + log.BG_RED + log.BOLD + fmt.Sprint("!(", pendingRules, ")") + labels[labelIdx]
+		ui.pendingRules++
+		ui.labelRules = FG_BLINK + log.FG_WHITE + log.BG_RED + log.BOLD + fmt.Sprint("!(", ui.pendingRules, ")") + ui.labels[labelIdx]
 	}
 }
 
-func resetBlinkingLabel(labelIdx int) {
+func (u *UI) resetBlinkingLabel(labelIdx int) {
 	switch labelIdx {
 	case RULES:
-		labelRules = labels[labelIdx]
-		pendingRules = 0
+		ui.labelRules = ui.labels[labelIdx]
+		ui.pendingRules = 0
 	}
 }
 
-func cleanLine() {
-	fmt.Printf("%*s%s\n", ttyCols, " ", log.RESET)
+func (u *UI) cleanLine() {
+	fmt.Printf("%*s%s\n", u.ttyCols, " ", log.RESET)
 }
 
-func drawBoxTop(width int) {
-	cleanLine()
+func (u *UI) drawBoxTop(width int) {
+	u.cleanLine()
 	fmt.Printf(BORDER_TOP_LEFT)
 	// unicode chars are 3bytes length
 	for w := 0; w < width-6; w++ {
@@ -96,16 +158,16 @@ func drawBoxTop(width int) {
 	fmt.Printf(BORDER_TOP_RIGHT + "\n")
 }
 
-func drawBoxBottom(width int) {
+func (u *UI) drawBoxBottom(width int) {
 	fmt.Printf(BORDER_BOTTOM_LEFT)
 	for w := 0; w < width-6; w++ {
 		fmt.Printf(BORDER_HORIZONTAL)
 	}
 	fmt.Printf(BORDER_BOTTOM_RIGHT + "\n")
-	cleanLine()
+	u.cleanLine()
 }
 
-func questionBox(title, body, buttonBox string) {
+func (u *UI) questionBox(title, body, buttonBox string) {
 	titleLen := utf8.RuneCountInString(title)
 	bodyLen := utf8.RuneCountInString(body)
 	btnsLen := utf8.RuneCountInString(buttonBox)
@@ -119,16 +181,16 @@ func questionBox(title, body, buttonBox string) {
 
 	padding += 8 // vertical bar * 2 + space
 
-	drawBoxTop(padding)
+	u.drawBoxTop(padding)
 	// FIXME: vertical lines
 	fmt.Printf("%s %s%*s\n", BORDER_VERTICAL, title, padding-titleLen, BORDER_VERTICAL)
 	fmt.Printf("%s %s%*s\n", BORDER_VERTICAL, body, padding-bodyLen, BORDER_VERTICAL)
 	fmt.Printf("%s %s%*s\n", BORDER_VERTICAL, buttonBox, padding-btnsLen, BORDER_VERTICAL)
-	drawBoxBottom(padding)
-	cleanLine()
+	u.drawBoxBottom(padding)
+	u.cleanLine()
 }
 
-func showTopBar(colList []string) {
+func (u *UI) showTopBar(colList []string) {
 	topBar := "  "
 	for _, col := range colList {
 		topBar += fmt.Sprint(log.Wrap(col, log.FG_WHITE+log.BG_GREEN), " ")
@@ -136,31 +198,32 @@ func showTopBar(colList []string) {
 	log.Raw(fmt.Sprint(topBar, "\n"))
 }
 
-func showStatusBar() {
-	stats := config.apiClient.GetLastStats()
-	if getPauseStats() {
-		labelStatus = labels[PAUSED]
+func (u *UI) showStatusBar() {
+	//stats := u.aClient.GetLastStats()
+	stats := u.getGlobalStats()
+	if u.getPauseStats() {
+		ui.labelStatus = ui.labels[PAUSED]
 	} else {
-		labelStatus = ""
+		ui.labelStatus = ""
 	}
 	uptime, _ := time.ParseDuration(fmt.Sprint(stats.Uptime, "s"))
-	uptimeLabel := fmt.Sprint(labels[UPTIME], " ", uptime, " ")
+	uptimeLabel := fmt.Sprint(ui.labels[UPTIME], " ", uptime, " ")
 	if nodes.Total() > 1 {
 		uptimeLabel = ""
 	}
 	log.Raw(fmt.Sprint(
-		labelStatus, // hidden if not paused
-		log.Wrap(fmt.Sprint("[", config.View, "]"), log.FG_WHITE+log.BG_LBLUE), " ",
+		ui.labelStatus, // hidden if not paused
+		log.Wrap(fmt.Sprint("[", u.viewsConf.View, "]"), log.FG_WHITE+log.BG_LBLUE), " ",
 		uptimeLabel,
-		labels[CONNECTIONS], " ", nodes.GetStatsSum(0), " ",
-		labels[DENIES], " ", nodes.GetStatsSum(1), " ",
-		labelRules, " ", nodes.GetStatsSum(2), " ",
-		labels[EVENTS], " ", nodes.GetStatsSum(3), " ",
-		labels[HELP], " ",
+		ui.labels[CONNECTIONS], " ", nodes.GetStatsSum(0), " ",
+		ui.labels[DENIES], " ", nodes.GetStatsSum(1), " ",
+		ui.labelRules, " ", nodes.GetStatsSum(2), " ",
+		ui.labels[EVENTS], " ", nodes.GetStatsSum(3), " ",
+		ui.labels[HELP], " ",
 		"\r"))
 }
 
-func getTermSize() {
+func (u *UI) getTermSize() {
 	tSize := &termSize{}
 	retCode, _, _ := syscall.Syscall(syscall.SYS_IOCTL,
 		uintptr(syscall.Stdin),
@@ -171,20 +234,20 @@ func getTermSize() {
 		return
 	}
 
-	ttyRows = tSize.Rows
-	ttyCols = tSize.Cols
+	u.ttyRows = tSize.Rows
+	u.ttyCols = tSize.Cols
 }
 
 func getTTYSize() {
 	cmd := exec.Command("stty", "size")
 	cmd.Stdin = os.Stdin
 	if termSize, err := cmd.Output(); err == nil {
-		fmt.Sscan(string(termSize), &ttyRows, &ttyCols)
+		fmt.Sscan(string(termSize), &ui.ttyRows, &ui.ttyCols)
 	}
 }
 
-func resetScreen() {
-	getTermSize()
+func (u *UI) resetScreen() {
+	u.getTermSize()
 	fmt.Printf("\033[1J\033[f")
 }
 
@@ -198,7 +261,7 @@ func RestoreTTY() {
 func nextView() {
 	pos, _ := viewList[config.View]
 	pos++
-	if pos > totalViews {
+	if pos >= totalViews {
 		pos = 0
 	}
 	changeView(pos)
@@ -208,25 +271,26 @@ func prevView() {
 	pos, _ := viewList[config.View]
 	pos--
 	if pos < 0 {
-		pos = totalViews
+		pos = totalViews - 1
 	}
 	changeView(pos)
 }
 
-func changeView(pos int) {
+func changeView(pos int8) {
+	println("POS:", pos)
 	config.View = viewNames[pos]
 	switch pos {
-	case viewList[ViewGeneral]:
-		GeneralStats()
-	case viewList[ViewHosts],
-		viewList[ViewProcs],
-		viewList[ViewAddrs],
-		viewList[ViewPorts],
-		viewList[ViewUsers]:
-		StatsByType(viewNames[pos])
-	case viewList[ViewRules]:
-		RulesList()
-	case viewList[ViewNodes]:
-		NodesList()
+	case viewList[ViewNameGeneral]:
+		vEvents.Print()
+	case viewList[ViewNameHosts],
+		viewList[ViewNameProcs],
+		viewList[ViewNameAddrs],
+		viewList[ViewNamePorts],
+		viewList[ViewNameUsers]:
+		vEventsByType.Print(pos, viewNames[pos])
+	case viewList[ViewNameRules]:
+		vRules.Print()
+	case viewList[ViewNameNodes]:
+		vNodes.Print()
 	}
 }

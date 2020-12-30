@@ -83,11 +83,15 @@ func GetPeer(ctx context.Context) *peer.Peer {
 func GetAddr(ctx context.Context) (addr string) {
 	p := GetPeer(ctx)
 	host, _, err := net.SplitHostPort(p.Addr.String())
-	if err != nil {
+	if err != nil && p.Addr.String() == "@" {
+		host = "localhost"
+		addr = "unix://" + host
+	} else if err != nil {
+		log.Error("nodes.GetAddr() can not get noe address, addr:", p.Addr.String())
 		return ""
 	}
 	addr = p.Addr.Network() + ":" + host
-	return addr
+	return
 }
 
 // GetAll nodes.

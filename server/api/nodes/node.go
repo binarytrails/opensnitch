@@ -2,6 +2,7 @@ package nodes
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
@@ -19,6 +20,7 @@ var (
 )
 
 type node struct {
+	sync.RWMutex
 	// proto:host
 	addr                 string
 	ctx                  context.Context
@@ -44,6 +46,9 @@ func NewNode(ctx context.Context, addr string, nodeConf *protocol.ClientConfig) 
 }
 
 func (n *node) String() string {
+	n.RLock()
+	defer n.RUnlock()
+
 	return fmt.Sprintf("[%v]  -  [%-20s]  -  [%-24s]  -  [%s]  -  [%s]", n.lastSeen.Format(time.Stamp), n.addr, n.status, n.config.Version, n.config.Name)
 }
 
@@ -71,15 +76,24 @@ func (n *node) SendNotification(notif *protocol.Notification) {
 }
 
 func (n *node) UpdateStats(stats *protocol.Statistics) {
+	n.Lock()
+	defer n.Unlock()
+
 	n.stats = stats
 	n.lastSeen = time.Now()
 }
 
 func (n *node) GetStats() *protocol.Statistics {
+	n.Lock()
+	defer n.Unlock()
+
 	return n.stats
 }
 
 func (n *node) GetConfig() *protocol.ClientConfig {
+	n.RLock()
+	defer n.RUnlock()
+
 	return n.config
 }
 

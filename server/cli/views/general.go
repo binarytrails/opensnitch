@@ -2,79 +2,66 @@ package views
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
-	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
+	"github.com/gustavo-iniguez-goya/opensnitch/server/api/storage"
 )
 
-// GeneralStats displays the latest statistics of the node(s).
-func GeneralStats() {
-	waitForStats()
+// ViewEvents holds the functionality to display connections events
+type ViewEvents struct {
+	*Screen
+	*BaseView
+}
+
+// NewViewEvents returns a ViewEvents struct and initializes the parent structs.
+func NewViewEvents(scr *Screen, baseView *BaseView) *ViewEvents {
+	return &ViewEvents{scr, baseView}
+}
+
+// Print displays the latest statistics of the node(s).
+func (v *ViewEvents) Print() {
+	v.waitForStats()
 
 	totalEvents := 0
 	for {
-		if !getPauseStats() {
-			resetScreen()
+		if !v.getPauseStats() {
+			v.resetScreen()
 
-			allEvents := collectEvents()
-			totalEvents = len(allEvents)
-			for idx, event := range allEvents {
-				if idx == config.Limit {
-					break
-				}
-				if config.Filter != "" {
-					filterEvent(event)
+			events := v.aClient.GetEvents(v.sortMode, v.viewsConf.Limit)
+			totalEvents = len(*events)
+			for _, event := range *events {
+				if v.viewsConf.Filter != "" {
+					v.filterEvent(&event)
 				} else {
-					printEvent(event)
+					v.printEvent(&event)
 				}
 			}
-			printVerticalPadding(totalEvents)
+			v.printVerticalPadding(totalEvents)
 		}
-		showStatusBar()
+		v.showStatusBar()
 		readLiveMenu()
-		if getStopStats() || !config.Loop {
+		if ui.getStopStats() {
 			return
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
 }
 
-// collect events from all the connected nodes.
-func collectEvents() (events []*protocol.Event) {
-	for _, node := range *nodes.GetAll() {
-		if node.GetStats() == nil {
-			continue
-		}
-		// TODO: addToDb() mem, postgre, etc
-		events = append(events, node.GetStats().Events...)
+func (v *ViewEvents) filterEvent(conn *storage.Connection) {
+	switch v.viewsConf.Filter {
+	case conn.Protocol:
+	case fmt.Sprint(conn.UserID):
+	case fmt.Sprint(conn.SrcPort):
+	case conn.SrcIP:
+	case fmt.Sprint(conn.DstPort):
+	case conn.DstIP:
+	case conn.DstHost:
+	case conn.RuleAction:
+		screen.printEvent(conn)
 	}
-	sort.Slice(events, func(i, j int) bool {
-		if sortMode == sortModeAscending {
-			return events[i].Time < events[j].Time
-		}
-		return events[i].Time > events[j].Time
-	})
-
-	return events
-}
-
-func filterEvent(ev *protocol.Event) {
-	switch config.Filter {
-	case ev.Connection.Protocol:
-	case fmt.Sprint(ev.Connection.UserId):
-	case fmt.Sprint(ev.Connection.SrcPort):
-	case ev.Connection.SrcIp:
-	case fmt.Sprint(ev.Connection.DstPort):
-	case ev.Connection.DstIp:
-	case ev.Connection.DstHost:
-	case ev.Rule.Action:
-		printEvent(ev)
-	}
-	if strings.Contains(ev.Connection.ProcessPath, config.Filter) ||
-		strings.Contains(ev.Connection.DstHost, config.Filter) {
-		printEvent(ev)
+	if strings.Contains(conn.ProcessPath, v.viewsConf.Filter) ||
+		strings.Contains(conn.DstHost, v.viewsConf.Filter) {
+		screen.printEvent(conn)
 	}
 }

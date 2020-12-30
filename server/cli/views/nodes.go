@@ -6,23 +6,34 @@ import (
 	"time"
 )
 
-// NodesList displays the list of connected nodes.
-func NodesList() {
-	waitForStats()
+// ViewNodes holds the functionality to list nodes.
+type ViewNodes struct {
+	*Screen
+	*BaseView
+}
+
+// NewViewNodes returns a new ViewNodes struct and initializes the parent structs.
+func NewViewNodes(scr *Screen, baseView *BaseView) *ViewNodes {
+	return &ViewNodes{scr, baseView}
+}
+
+// Print displays the list of connected nodes.
+func (v *ViewNodes) Print() {
+	v.waitForStats()
 	topCols := []string{"Last seen        ", " - ", "Node                  ", " - ", "Status   ", " - ", "Version                              ", " - ", "Name     "}
 	for {
-		if !getPauseStats() {
-			resetScreen()
-			showTopBar(topCols)
+		if !v.getPauseStats() {
+			v.resetScreen()
+			v.showTopBar(topCols)
 			for _, node := range *nodes.GetAll() {
 				fmt.Printf("  %v\n", node)
 			}
-			printVerticalPadding(nodes.Total())
+			v.printVerticalPadding(nodes.Total())
 		}
-		if getStopStats() {
+		if v.getStopStats() {
 			return
 		}
-		showStatusBar()
+		v.showStatusBar()
 		readLiveMenu()
 		time.Sleep(300 * time.Millisecond)
 	}

@@ -4,6 +4,7 @@ import (
 	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
 	"github.com/gustavo-iniguez-goya/opensnitch/daemon/log"
 	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
+	"github.com/gustavo-iniguez-goya/opensnitch/server/api/storage"
 	"golang.org/x/net/context"
 	"sync"
 )
@@ -11,6 +12,8 @@ import (
 // Client struct groups the API functionality to communicate with the nodes
 type Client struct {
 	sync.RWMutex
+	db           *storage.Storage
+	workAsDaemon bool
 	lastStats    *protocol.Statistics
 	nodesChan    chan bool
 	rulesInChan  chan *protocol.Connection
@@ -43,13 +46,18 @@ const (
 )
 
 // NewClient setups a new client and starts the server to listen for new nodes.
-func NewClient(serverProto, serverPort string) *Client {
+func NewClient(serverProto, serverPort string, asDaemon bool, db *storage.Storage) *Client {
 	c := &Client{
+		db:           db,
+		workAsDaemon: asDaemon,
 		nodesChan:    make(chan bool),
 		rulesInChan:  make(chan *protocol.Connection, 1),
 		rulesOutChan: make(chan *protocol.Rule, 1),
 	}
-	go startServer(c, serverProto, serverPort)
+	if asDaemon == false {
+		go StartServer(c, serverProto, serverPort)
+	}
+
 	return c
 }
 
@@ -60,8 +68,53 @@ func (c *Client) UpdateStats(ctx context.Context, stats *protocol.Statistics) {
 	}
 	c.Lock()
 	defer c.Unlock()
+
+	nodeAddr := nodes.GetAddr(ctx)
 	c.lastStats = stats
+	if c.db != nil {
+		c.db.Update(nodeAddr, stats)
+	}
 	nodes.UpdateStats(ctx, stats)
+}
+
+// GetStats gets global stats from the db
+func (c *Client) GetStats() (stats *[]storage.Statistics) {
+	if c.db != nil {
+		stats = c.db.GetStats()
+	}
+	return stats
+}
+
+// GetNodeStats gets global stats from the db
+func (c *Client) GetNodeStats() (nodes *[]storage.Node) {
+	if c.db != nil {
+		nodes = c.db.GetNodeStats()
+	}
+	return nodes
+}
+
+// GetEvents gets events from the db
+func (c *Client) GetEvents(order string, limit int) (events *[]storage.Connection) {
+	if c.db != nil {
+		events = c.db.GetEvents(order, limit)
+	}
+	return events
+}
+
+// GetEventsByType returns the list events from the db, by type.
+func (c *Client) GetEventsByType(viewType, order string, limit int) (events *[]storage.EventByType) {
+	if c.db != nil {
+		events = c.db.GetEventsByType(viewType, order, limit)
+	}
+	return events
+}
+
+// GetRules returns the list of rules from the db.
+func (c *Client) GetRules(order string, limit int) (rules *[]storage.Rule) {
+	if c.db != nil {
+		rules = c.db.GetRules(order, limit)
+	}
+	return rules
 }
 
 // GetLastStats returns latest stasts from a node.
@@ -77,6 +130,10 @@ func (c *Client) GetLastStats() *protocol.Statistics {
 // A client must consume data on that channel, and send the response via the
 // rulesOutChan channel.
 func (c *Client) AskRule(ctx context.Context, con *protocol.Connection) chan *protocol.Rule {
+	if c.workAsDaemon {
+		c.rulesOutChan <- nil
+		return c.rulesOutChan
+	}
 	c.rulesInChan <- con
 	return c.rulesOutChan
 }
@@ -85,6 +142,9 @@ func (c *Client) AskRule(ctx context.Context, con *protocol.Connection) chan *pr
 func (c *Client) AddNewNode(ctx context.Context, nodeConf *protocol.ClientConfig) {
 	log.Info("AddNewNode: %s - %s", nodeConf.Name, nodeConf.Version)
 	nodes.Add(ctx, nodeConf)
+	if c.db != nil {
+		c.db.AddNode(nodes.GetAddr(ctx), nodeConf)
+	}
 	c.nodesChan <- true
 }
 

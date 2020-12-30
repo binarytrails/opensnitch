@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/evilsocket/opensnitch/daemon/ui/protocol"
-	"github.com/gustavo-iniguez-goya/opensnitch/server/api/nodes"
 )
 
 const (
@@ -18,18 +17,41 @@ const (
 	colUID     = "UID"
 )
 
+// ViewEventsByType holds the functionality to list events by type.
+type ViewEventsByType struct {
+	*Screen
+	*BaseView
+	eventType map[int8]string
+}
+
+// NewViewByType returns a new ViewByType struct and initializes the parent structs.
+func NewViewByType(scr *Screen, baseView *BaseView) *ViewEventsByType {
+	return &ViewEventsByType{
+		scr,
+		baseView,
+		map[int8]string{
+			0: "ByProto",
+			1: "ByHost",
+			2: "ByExecutable",
+			3: "ByAddress",
+			4: "ByPort",
+			5: "ByUid",
+		},
+	}
+}
+
 type eventHits struct {
 	Key   string
 	Value uint64
 }
 
-func sortEvents(events *map[string]uint64) *[]*eventHits {
+func (v *ViewEventsByType) sortEvents(events *map[string]uint64) *[]*eventHits {
 	var eves []*eventHits
 	for k, v := range *events {
 		eves = append(eves, &eventHits{k, v})
 	}
 	sort.Slice(eves, func(i, j int) bool {
-		if sortMode == sortModeAscending {
+		if v.sortMode == v.sortModeAscending {
 			return eves[i].Value > eves[j].Value
 		}
 		return eves[i].Value < eves[j].Value
@@ -37,31 +59,31 @@ func sortEvents(events *map[string]uint64) *[]*eventHits {
 	return &eves
 }
 
-func getTypeStats(viewType string, stype *protocol.Statistics) (vstats *map[string]uint64) {
+func (v *ViewEventsByType) getTypeStats(viewName string, stype *protocol.Statistics) (vstats *map[string]uint64) {
 	vstats = &stype.ByHost
-	switch viewType {
-	case ViewProcs:
+	switch viewName {
+	case ViewNameProcs:
 		vstats = &stype.ByExecutable
-	case ViewAddrs:
+	case ViewNameAddrs:
 		vstats = &stype.ByAddress
-	case ViewPorts:
+	case ViewNamePorts:
 		vstats = &stype.ByPort
-	case ViewUsers:
+	case ViewNameUsers:
 		vstats = &stype.ByUid
 	}
 
 	return vstats
 }
 
-func getColumnName(viewType string) (colName string) {
-	switch viewType {
-	case ViewProcs:
+func (v *ViewEventsByType) getColumnName(viewName string) (colName string) {
+	switch viewName {
+	case ViewNameProcs:
 		colName = colProcess
-	case ViewAddrs:
+	case ViewNameAddrs:
 		colName = colAddress
-	case ViewPorts:
+	case ViewNamePorts:
 		colName = colPort
-	case ViewUsers:
+	case ViewNameUsers:
 		colName = colUID
 	default:
 		colName = colHost
@@ -70,44 +92,35 @@ func getColumnName(viewType string) (colName string) {
 	return colName
 }
 
-// StatsByType shows the latest statistics of the node(s) by type.
-func StatsByType(viewType string) {
-	waitForStats()
-	colWhat := getColumnName(viewType)
+// Print shows the latest statistics of the node(s) by type.
+func (v *ViewEventsByType) Print(viewPos int8, viewName string) {
+	v.waitForStats()
+	colWhat := v.getColumnName(viewName)
 	topCols := []string{"Node                  ", colHits, "-", colWhat}
 	totalStats := 0
 
 	for {
-		if !getPauseStats() {
-			resetScreen()
+		if !v.getPauseStats() {
+			v.resetScreen()
 			topCols[3] = colWhat
-			showTopBar(topCols)
+			v.showTopBar(topCols)
 
 			totalStats = 0
-			for addr, node := range *nodes.GetAll() {
-				if node.GetStats() == nil {
-					break
+			vstats := v.aClient.GetEventsByType(v.eventType[viewPos], v.sortMode, v.viewsConf.Limit)
+			for _, ev := range *vstats {
+				if v.viewsConf.Filter != "" {
+					v.printStats(ev.Node, ev.What, ev.Hits)
+				} else {
+					v.printStats(ev.Node, ev.What, ev.Hits)
 				}
-
-				vstats := getTypeStats(viewType, node.GetStats())
-				for _, e := range *sortEvents(vstats) {
-					// XXX: actions should be modular
-					if config.Filter != "" {
-						if e.Key == config.Filter {
-							printStats(addr, e.Key, e.Value)
-						}
-					} else {
-						printStats(addr, e.Key, e.Value)
-					}
-				}
-
-				totalStats += len(*vstats)
 			}
-			printVerticalPadding(totalStats)
+
+			totalStats += len(*vstats)
+			v.printVerticalPadding(totalStats)
 		}
-		showStatusBar()
+		v.showStatusBar()
 		readLiveMenu()
-		if getStopStats() {
+		if v.getStopStats() {
 			return
 		}
 		time.Sleep(600 * time.Millisecond)
