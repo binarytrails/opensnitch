@@ -20,8 +20,9 @@ This packages are provided to you in the aim of being useful and ease the instal
 
 - LinuxMint >= 18: see: [#16](https://github.com/gustavo-iniguez-goya/opensnitch/issues/16) or `apt-get install g++ python3-dev python3-wheel python3-slugify`
 - MXLinux >= 19.x: You need to install additional packages: `apt-get install python3-dev python3-wheel`
-- Pop!_OS: if you find that opensnitch is not behaving correctly (it slowdowns your system for some reason), reinstall it using the one-liner above from the command line. It seems that there're troubles installing it using the graphical installer `eddy`.
+- Pop!_ OS: if you find that opensnitch is not behaving correctly (it slowdowns your system for some reason), reinstall it using the one-liner above from the command line. It seems that there're troubles installing it using the graphical installer `eddy`.
 - Fedora >= 3x: You can install `python3-grpcio` instead of the pip package.
+- Ubuntu 16.04.x: Do not install the dependencies when the installer ask you to do so. After installing the package execute: `sudo pip3 install grpcio==1.16.1 protobuf`
 
 ---
 
