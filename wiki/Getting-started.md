@@ -25,7 +25,7 @@ A common practice is to apply a rule of "Least privilege", i.e., block all by de
 ![](https://user-images.githubusercontent.com/2742953/85337070-136ff600-b4e0-11ea-838a-439366c70668.png)
 
 
-Some processes are part of the GNU/Linux system, and critical to the well functioning of it. Some of these processes are:
+Some processes are part of the GNU/Linux ecosystem, and critical to the well functioning of it. Some of these processes are:
 ```
 /usr/bin/xbrlapi
 /usr/bin/dirmngr
@@ -37,4 +37,13 @@ Some others are not critical, but as part of the system they have their function
 /usr/libexec/colord-sane
 /usr/sbin/avahi-daemon
 /usr/libexec/dleyna-server-service
+/lib/systemd/systemd-timesyncd
+/usr/lib/systemd/systemd-resolved
+```
+
+Some applications launch external processes, so for example, you may be prompted to allow application A, and just right away asked to allow application B.
+This is the case with Epiphany web browser, gnome-maps or snap: https://github.com/gustavo-iniguez-goya/opensnitch/issues/134#issuecomment-772876103
+```
+/usr/bin/epiphany
+/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitNetworkProcess
 ```
